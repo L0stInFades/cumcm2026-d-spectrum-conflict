@@ -34,7 +34,9 @@ def test_execute_records_manifest_skips_reruns_and_enforces_deps(tmp_repo: Path,
     result = runner.execute("first", "r1", {"code_ref": {"git_sha": "x"}}, False, tmp_repo, vol)
     assert result["status"] == "completed" and result["metrics"] == {"n": 1}
     manifest = json.loads((vol / "runs" / "r1" / "first" / "manifest.json").read_text())
-    assert manifest["status"] == "completed" and "a.txt" in manifest["outputs"] and "numbers.json" in manifest["outputs"]
+    assert (
+        manifest["status"] == "completed" and "a.txt" in manifest["outputs"] and "numbers.json" in manifest["outputs"]
+    )
     assert json.loads((vol / "runs" / "r1" / "first" / "numbers.json").read_text()) == {"Answer": "42"}
     assert runner.execute("first", "r1", {}, False, tmp_repo, vol)["status"] == "skipped"
     assert runner.execute("second", "r1", {}, False, tmp_repo, vol)["status"] == "completed"

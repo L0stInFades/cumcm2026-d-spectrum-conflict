@@ -34,21 +34,59 @@ app = modal.App(PROJECT["app"])
 volume = modal.Volume.from_name(PROJECT["volume"], create_if_missing=True)
 
 APT_PACKAGES = [
-    "texlive-xetex", "texlive-lang-chinese", "texlive-latex-base", "texlive-latex-recommended",
-    "texlive-latex-extra", "texlive-science", "texlive-pictures", "texlive-bibtex-extra",
-    "texlive-fonts-recommended", "fonts-noto-cjk", "fonts-noto-core", "fonts-droid-fallback", "fonts-wqy-microhei",
-    "fontconfig", "poppler-utils", "zip", "unzip",
+    "texlive-xetex",
+    "texlive-lang-chinese",
+    "texlive-latex-base",
+    "texlive-latex-recommended",
+    "texlive-latex-extra",
+    "texlive-science",
+    "texlive-pictures",
+    "texlive-bibtex-extra",
+    "texlive-fonts-recommended",
+    "fonts-noto-cjk",
+    "fonts-noto-core",
+    "fonts-droid-fallback",
+    "fonts-wqy-microhei",
+    "fontconfig",
+    "poppler-utils",
+    "zip",
+    "unzip",
 ]
 PIP_PACKAGES = [
-    "numpy==2.2.6", "scipy==1.15.3", "pandas==2.2.3", "pyarrow==20.0.0", "openpyxl==3.1.5",
-    "matplotlib==3.10.3", "scikit-learn==1.6.1", "statsmodels==0.14.4", "ortools==9.12.4544",
-    "highspy==1.10.0", "numba==0.61.2", "cvxpy==1.6.5", "networkx==3.4.2", "pydantic==2.11.4",
-    "pymupdf==1.26.7", "pytest==8.3.5", "pytest-cov==6.1.1", "hypothesis==6.131.9",
-    "ruff==0.11.10", "mypy==1.15.0", "pandas-stubs==2.2.3.250308", "types-openpyxl==3.1.5.20250602",
+    "numpy==2.2.6",
+    "scipy==1.15.3",
+    "pandas==2.2.3",
+    "pyarrow==20.0.0",
+    "openpyxl==3.1.5",
+    "matplotlib==3.10.3",
+    "scikit-learn==1.6.1",
+    "statsmodels==0.14.4",
+    "ortools==9.12.4544",
+    "highspy==1.10.0",
+    "numba==0.61.2",
+    "cvxpy==1.6.5",
+    "networkx==3.4.2",
+    "pydantic==2.11.4",
+    "pymupdf==1.26.7",
+    "pytest==8.3.5",
+    "pytest-cov==6.1.1",
+    "hypothesis==6.131.9",
+    "ruff==0.11.10",
+    "mypy==1.15.0",
+    "pandas-stubs==2.2.3.250308",
+    "types-openpyxl==3.1.5.20250602",
 ]
 SKIP_PARTS = {
-    ".git", "artifacts", "releases", ".forge", "__pycache__", ".mypy_cache", ".ruff_cache",
-    ".pytest_cache", ".hypothesis", ".DS_Store",
+    ".git",
+    "artifacts",
+    "releases",
+    ".forge",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    ".hypothesis",
+    ".DS_Store",
 }
 
 
@@ -60,13 +98,25 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install(*APT_PACKAGES)
     .pip_install(*PIP_PACKAGES)
-    .env({
-        "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1",
-        "MPLBACKEND": "Agg", "MPLCONFIGDIR": "/tmp/mpl", "PYTHONHASHSEED": "0",
-        "PYTHONUNBUFFERED": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": "/repo",
-        "FORGE_REPO": "/repo", "FORGE_VOL": "/vol", "MODAL_IS_REMOTE": "1",
-        "TEXMFVAR": "/tmp/texmf-var", "TEXMFCONFIG": "/tmp/texmf-config", "HOME": "/root",
-    })
+    .env(
+        {
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "MKL_NUM_THREADS": "1",
+            "MPLBACKEND": "Agg",
+            "MPLCONFIGDIR": "/tmp/mpl",
+            "PYTHONHASHSEED": "0",
+            "PYTHONUNBUFFERED": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONPATH": "/repo",
+            "FORGE_REPO": "/repo",
+            "FORGE_VOL": "/vol",
+            "MODAL_IS_REMOTE": "1",
+            "TEXMFVAR": "/tmp/texmf-var",
+            "TEXMFCONFIG": "/tmp/texmf-config",
+            "HOME": "/root",
+        }
+    )
     .add_local_dir(REPO, "/repo", ignore=_ignore)
 )
 
@@ -86,8 +136,15 @@ def _run(stage: str, run_id: str, params_json: str, force: bool) -> dict:
     from forge.runner import execute
 
     params = json.loads(params_json or "{}")
-    return execute(stage_name=stage, run_id=run_id, params=params, force=force,
-                   repo=Path("/repo"), vol=Path("/vol"), commit=volume.commit)
+    return execute(
+        stage_name=stage,
+        run_id=run_id,
+        params=params,
+        force=force,
+        repo=Path("/repo"),
+        vol=Path("/vol"),
+        commit=volume.commit,
+    )
 
 
 @app.function(image=image, volumes=VOLUME_MOUNT, cpu=2, memory=4096, timeout=2 * 3600)
@@ -112,13 +169,16 @@ def exec_python(code: str, run_id: str) -> str:
     volume.reload()
     buffer = io.StringIO()
     scope = {
-        "__name__": "__forge_exec__", "RUN_DIR": Path("/vol/runs") / run_id, "VOL": Path("/vol"),
-        "REPO": Path("/repo"), "RUNS": Path("/vol/runs"),
+        "__name__": "__forge_exec__",
+        "RUN_DIR": Path("/vol/runs") / run_id,
+        "VOL": Path("/vol"),
+        "REPO": Path("/repo"),
+        "RUNS": Path("/vol/runs"),
     }
     with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
         try:
             exec(compile(code, "<forge-exec>", "exec"), scope)  # noqa: S102 - explicit cloud REPL
-        except BaseException:  # noqa: BLE001
+        except BaseException:
             traceback.print_exc(file=buffer)
     volume.commit()
     return buffer.getvalue()
@@ -137,9 +197,21 @@ def provision() -> dict:
     info["xelatex"] = subprocess.run(["xelatex", "--version"], capture_output=True, text=True).stdout.splitlines()[0]
     info["bibtex"] = subprocess.run(["bibtex", "--version"], capture_output=True, text=True).stdout.splitlines()[0]
     info["fc_cjk"] = subprocess.run(["fc-match", "Noto Serif CJK SC"], capture_output=True, text=True).stdout.strip()
-    info["kpse"] = {name: bool(subprocess.run(["kpsewhich", name], capture_output=True, text=True).stdout.strip())
-                    for name in ("ctexart.cls", "gbt7714.sty", "siunitx.sty", "algorithm2e.sty", "booktabs.sty",
-                                 "tikz.sty", "listings.sty", "cleveref.sty", "tcolorbox.sty", "pgfplots.sty")}
+    info["kpse"] = {
+        name: bool(subprocess.run(["kpsewhich", name], capture_output=True, text=True).stdout.strip())
+        for name in (
+            "ctexart.cls",
+            "gbt7714.sty",
+            "siunitx.sty",
+            "algorithm2e.sty",
+            "booktabs.sty",
+            "tikz.sty",
+            "listings.sty",
+            "cleveref.sty",
+            "tcolorbox.sty",
+            "pgfplots.sty",
+        )
+    }
     from ortools.sat.python import cp_model
 
     model = cp_model.CpModel()

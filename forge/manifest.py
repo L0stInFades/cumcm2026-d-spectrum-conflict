@@ -16,8 +16,24 @@ from typing import Any
 from .hashing import hash_tree, tree_digest
 
 TRACKED_PACKAGES = (
-    "numpy", "scipy", "pandas", "pyarrow", "openpyxl", "matplotlib", "scikit-learn", "statsmodels",
-    "ortools", "highspy", "numba", "cvxpy", "networkx", "pymupdf", "pytest", "hypothesis", "ruff", "mypy",
+    "numpy",
+    "scipy",
+    "pandas",
+    "pyarrow",
+    "openpyxl",
+    "matplotlib",
+    "scikit-learn",
+    "statsmodels",
+    "ortools",
+    "highspy",
+    "numba",
+    "cvxpy",
+    "networkx",
+    "pymupdf",
+    "pytest",
+    "hypothesis",
+    "ruff",
+    "mypy",
 )
 RECORD_FILES = ("manifest.json", "events.jsonl")  # run records, excluded from the outputs digest
 
@@ -76,8 +92,13 @@ class Manifest:
         inputs: dict[str, dict[str, Any]],
     ) -> Manifest:
         manifest = cls(
-            run_id=run_id, stage=stage, params=params, code_ref=code_ref,
-            config_digest=config_digest, deps=deps, inputs=inputs,
+            run_id=run_id,
+            stage=stage,
+            params=params,
+            code_ref=code_ref,
+            config_digest=config_digest,
+            deps=deps,
+            inputs=inputs,
         )
         manifest.runtime = runtime_info()
         return manifest

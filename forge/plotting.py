@@ -33,7 +33,9 @@ def _probe(family: str) -> bool:
     from matplotlib import pyplot as plt
 
     catcher = _Catcher()
-    loggers = [logging.getLogger(n) for n in ("matplotlib.font_manager", "matplotlib.backends.backend_pdf", "matplotlib")]
+    loggers = [
+        logging.getLogger(n) for n in ("matplotlib.font_manager", "matplotlib.backends.backend_pdf", "matplotlib")
+    ]
     for lg in loggers:
         lg.addHandler(catcher)
     try:
@@ -48,7 +50,7 @@ def _probe(family: str) -> bool:
         messages = [str(w.message) for w in caught] + catcher.records
         bad = [m for m in messages if "missing from font" in m or "not found" in m.lower()]
         return not bad
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
     finally:
         for lg in loggers:
@@ -70,7 +72,7 @@ def cjk_font_family() -> str:
             continue
         try:
             font_manager.fontManager.addfont(path)
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
         if _probe(family):
             chosen = family
@@ -87,28 +89,30 @@ def setup(font_size: float = 9.0) -> str:
     from matplotlib import pyplot as plt
 
     family = cjk_font_family()
-    plt.rcParams.update({
-        "font.family": [family, "DejaVu Sans"],
-        "font.size": font_size,
-        "axes.titlesize": font_size + 1,
-        "axes.labelsize": font_size,
-        "legend.fontsize": font_size - 1,
-        "xtick.labelsize": font_size - 1,
-        "ytick.labelsize": font_size - 1,
-        "axes.prop_cycle": cycler(color=OKABE_ITO),
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-        "axes.grid": True,
-        "grid.alpha": 0.25,
-        "grid.linewidth": 0.6,
-        "lines.linewidth": 1.4,
-        "figure.dpi": 150,
-        "savefig.dpi": 300,
-        "pdf.fonttype": 42,
-        "ps.fonttype": 42,
-        "axes.unicode_minus": False,
-        "figure.constrained_layout.use": True,
-    })
+    plt.rcParams.update(
+        {
+            "font.family": [family, "DejaVu Sans"],
+            "font.size": font_size,
+            "axes.titlesize": font_size + 1,
+            "axes.labelsize": font_size,
+            "legend.fontsize": font_size - 1,
+            "xtick.labelsize": font_size - 1,
+            "ytick.labelsize": font_size - 1,
+            "axes.prop_cycle": cycler(color=OKABE_ITO),
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.grid": True,
+            "grid.alpha": 0.25,
+            "grid.linewidth": 0.6,
+            "lines.linewidth": 1.4,
+            "figure.dpi": 150,
+            "savefig.dpi": 300,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+            "axes.unicode_minus": False,
+            "figure.constrained_layout.use": True,
+        }
+    )
     return family
 
 

@@ -16,7 +16,7 @@ from typing import Any
 
 from forge import packaging, pdfqa, xlsx
 from forge.context import StageContext
-from forge.hashing import sha256_file
+from forge.hashing import hash_tree, sha256_file
 from forge.runner import stage
 from forge.tex import aux_page, compile_tex, tex_escape
 
@@ -62,10 +62,12 @@ def _to_parquet(df: Any, target: Path) -> None:
     frame.columns = [str(c).strip() for c in frame.columns]
     try:
         frame.to_parquet(target, index=False)
-    except Exception:  # noqa: BLE001 - mixed-type object columns (e.g. '/' among floats)
+    except Exception:
         for col in frame.columns:
             if frame[col].dtype == object:
-                frame[col] = frame[col].map(lambda v: None if v is None or (isinstance(v, float) and v != v) else str(v))
+                frame[col] = frame[col].map(
+                    lambda v: None if v is None or (isinstance(v, float) and v != v) else str(v)
+                )
         frame.to_parquet(target, index=False)
 
 
@@ -77,7 +79,11 @@ def ingest(ctx: StageContext) -> dict[str, Any]:
     text = "\n\n".join(page.get_text("text", sort=True) for page in document)
     ctx.out("problem_text.txt").write_text(text, encoding="utf-8")
     inventory: dict[str, Any] = {
-        "problem_pdf": {"path": ctx.project["problem_pdf"], "sha256": sha256_file(ctx.problem_pdf), "pages": len(document)},
+        "problem_pdf": {
+            "path": ctx.project["problem_pdf"],
+            "sha256": sha256_file(ctx.problem_pdf),
+            "pages": len(document),
+        },
         "files": [],
     }
     for path in sorted(ctx.attachments.rglob("*.xlsx")):
@@ -85,10 +91,15 @@ def ingest(ctx: StageContext) -> dict[str, Any]:
             continue
         rel = path.relative_to(ctx.attachments).as_posix()
         is_template = path.parent == ctx.templates or ctx.templates in path.parents
-        entry: dict[str, Any] = {"path": rel, "sha256": sha256_file(path), "bytes": path.stat().st_size,
-                                 "template": is_template, "sheets": []}
+        entry: dict[str, Any] = {
+            "path": rel,
+            "sha256": sha256_file(path),
+            "bytes": path.stat().st_size,
+            "template": is_template,
+            "sheets": [],
+        }
         for name, df in xlsx.read_sheets(path).items():
-            sheet: dict[str, Any] = {"name": name, "rows": int(len(df)), "columns": [str(c) for c in df.columns]}
+            sheet: dict[str, Any] = {"name": name, "rows": len(df), "columns": [str(c) for c in df.columns]}
             if not is_template:
                 safe = re.sub(r"[^\w.-]+", "_", f"{path.stem}__{name}")
                 target = ctx.out("data", f"{safe}.parquet")
@@ -126,11 +137,28 @@ def lint(ctx: StageContext) -> dict[str, Any]:
 
 @stage("test", description="pytest (unit, property, integration) with JUnit and coverage reports")
 def test(ctx: StageContext) -> dict[str, Any]:
-    env = {**os.environ, "COVERAGE_FILE": "/tmp/.coverage", "HYPOTHESIS_STORAGE_DIRECTORY": "/tmp/hypothesis",
-           "FORGE_RUN_DIR": str(ctx.run_dir)}
-    cmd = ["python", "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider", "--rootdir", str(ctx.repo),
-           f"--junitxml={ctx.out('junit.xml')}", "--cov=forge", "--cov=pipelines",
-           f"--cov-report=json:{ctx.out('coverage.json')}", "--cov-report=term"]
+    env = {
+        **os.environ,
+        "COVERAGE_FILE": "/tmp/.coverage",
+        "HYPOTHESIS_STORAGE_DIRECTORY": "/tmp/hypothesis",
+        "FORGE_RUN_DIR": str(ctx.run_dir),
+    }
+    cmd = [
+        "python",
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--rootdir",
+        str(ctx.repo),
+        f"--junitxml={ctx.out('junit.xml')}",
+        "--cov=forge",
+        "--cov=pipelines",
+        f"--cov-report=json:{ctx.out('coverage.json')}",
+        "--cov-report=term",
+    ]
     extra = ctx.param("pytest_args")
     if extra:
         cmd += shlex.split(str(extra))
@@ -182,19 +210,31 @@ def _stage_rows(ctx: StageContext) -> list[dict[str, Any]]:
     rows = []
     for manifest in sorted(ctx.run_dir.glob("*/manifest.json")):
         data = json.loads(manifest.read_text(encoding="utf-8"))
-        rows.append({"stage": data["stage"], "status": data["status"], "duration_s": data.get("duration_s"),
-                     "outputs_digest": data.get("outputs_digest", ""), "modal_task_id": data.get("runtime", {}).get("modal_task_id")})
+        rows.append(
+            {
+                "stage": data["stage"],
+                "status": data["status"],
+                "duration_s": data.get("duration_s"),
+                "outputs_digest": data.get("outputs_digest", ""),
+                "modal_task_id": data.get("runtime", {}).get("modal_task_id"),
+            }
+        )
     return rows
 
 
-@stage("paper", description="Assemble generated inputs (numbers, tables, figures, code, support list) and compile with XeLaTeX")
+@stage(
+    "paper",
+    description="Assemble generated inputs (numbers, tables, figures, code, support list) and compile with XeLaTeX",
+)
 def paper(ctx: StageContext) -> dict[str, Any]:
     sources = list(ctx.cfg("paper.sources", []))
     for source in sources:
         ctx.dep(source)
     build = Path("/tmp/build")
     shutil.rmtree(build, ignore_errors=True)
-    shutil.copytree(ctx.repo / "manuscript", build, ignore=shutil.ignore_patterns("generated", "*.aux", "*.log", "*.pdf"))
+    shutil.copytree(
+        ctx.repo / "manuscript", build, ignore=shutil.ignore_patterns("generated", "*.aux", "*.log", "*.pdf")
+    )
     generated = build / "generated"
     (generated / "tables").mkdir(parents=True, exist_ok=True)
     (build / "figures").mkdir(exist_ok=True)
@@ -238,18 +278,27 @@ def paper(ctx: StageContext) -> dict[str, Any]:
     (generated / "code_listing.tex").write_text("\n".join(listing) + "\n", encoding="utf-8")
 
     members = _support_members(ctx, planned=True)
-    rows = ["% generated by forge — support material file list",
-            "\\begin{longtable}{@{}p{0.64\\linewidth}p{0.32\\linewidth}@{}}",
-            "\\toprule 文件 & 说明 \\\\ \\midrule \\endhead \\bottomrule \\endfoot"]
+    rows = [
+        "% generated by forge — support material file list",
+        "\\begin{longtable}{@{}p{0.64\\linewidth}p{0.32\\linewidth}@{}}",
+        "\\toprule 文件 & 说明 \\\\ \\midrule \\endhead \\bottomrule \\endfoot",
+    ]
     rows += [f"\\texttt{{{tex_escape(name)}}} & {tex_escape(_describe(name))} \\\\" for name, _ in members]
     rows.append("\\end{longtable}")
     (generated / "support_files.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
     ctx.write_json("support_members.json", [name for name, _ in members])
 
     stage_rows = _stage_rows(ctx)
-    repro = ["% generated by forge — reproducibility record",
-             "\\begin{longtable}{@{}llrl@{}}", "\\toprule 阶段 & 状态 & 用时/s & 输出摘要 (SHA-256 前 12 位) \\\\ \\midrule \\endhead \\bottomrule \\endfoot"]
-    repro += [f"\\texttt{{{tex_escape(r['stage'])}}} & {r['status']} & {r['duration_s'] or 0:.1f} & \\texttt{{{r['outputs_digest'][:12]}}} \\\\" for r in stage_rows]
+    repro = [
+        "% generated by forge — reproducibility record",
+        "\\begin{longtable}{@{}llrl@{}}",
+        "\\toprule 阶段 & 状态 & 用时/s & 输出摘要 (SHA-256 前 12 位) \\\\ \\midrule \\endhead \\bottomrule \\endfoot",
+    ]
+    repro += [
+        f"\\texttt{{{tex_escape(r['stage'])}}} & {r['status']} & {r['duration_s'] or 0:.1f} & "
+        f"\\texttt{{{r['outputs_digest'][:12]}}} \\\\"
+        for r in stage_rows
+    ]
     repro.append("\\end{longtable}")
     (generated / "repro_table.tex").write_text("\n".join(repro) + "\n", encoding="utf-8")
 
@@ -268,18 +317,34 @@ def paper(ctx: StageContext) -> dict[str, Any]:
     info = pdfqa.inspect_pdf(ctx.out("main.pdf"), with_text=False)
     body_pages = (body_end - abstract_end) if body_end and abstract_end else None
     report = {
-        "pages": info["pages"], "all_a4": info["all_a4"], "abstract_end_page": abstract_end,
-        "body_end_page": body_end, "body_pages": body_pages, "log": result["summary"],
-        "unembedded_fonts": info["unembedded_fonts"], "fonts": info["fonts"], "numbers": len(numbers),
-        "number_conflicts": conflicts, "tables": n_tables, "figures": n_figures, "code_files": len(files),
-        "support_members": len(members), "ai_usage_log": ai_summary, "stages": stage_rows,
+        "pages": info["pages"],
+        "all_a4": info["all_a4"],
+        "abstract_end_page": abstract_end,
+        "body_end_page": body_end,
+        "body_pages": body_pages,
+        "log": result["summary"],
+        "unembedded_fonts": info["unembedded_fonts"],
+        "fonts": info["fonts"],
+        "numbers": len(numbers),
+        "number_conflicts": conflicts,
+        "tables": n_tables,
+        "figures": n_figures,
+        "code_files": len(files),
+        "support_members": len(members),
+        "ai_usage_log": ai_summary,
+        "stages": stage_rows,
     }
     ctx.write_json("paper_report.json", report)
     summary = result["summary"]
-    return {"pages": info["pages"], "body_pages": body_pages,
-            "undefined_refs": len(summary["undefined_references"]) + len(summary["undefined_citations"]),
-            "overfull_max_pt": summary["overfull_max_pt"], "missing_chars": summary["missing_characters"],
-            "figures": n_figures, "tables": n_tables}
+    return {
+        "pages": info["pages"],
+        "body_pages": body_pages,
+        "undefined_refs": len(summary["undefined_references"]) + len(summary["undefined_citations"]),
+        "overfull_max_pt": summary["overfull_max_pt"],
+        "missing_chars": summary["missing_characters"],
+        "figures": n_figures,
+        "tables": n_tables,
+    }
 
 
 @stage("qa", deps=("paper",), description="Quality gates over the compiled paper and the result workbooks")
@@ -296,16 +361,25 @@ def qa(ctx: StageContext) -> dict[str, Any]:
 
     max_body = int(ctx.cfg("paper.max_body_pages", 30))
     check("abstract_single_page", report["abstract_end_page"] == 1, report["abstract_end_page"])
-    check("body_pages_within_limit", report["body_pages"] is not None and report["body_pages"] <= max_body,
-          f"{report['body_pages']} <= {max_body}")
+    check(
+        "body_pages_within_limit",
+        report["body_pages"] is not None and report["body_pages"] <= max_body,
+        f"{report['body_pages']} <= {max_body}",
+    )
     log = report["log"]
-    check("no_undefined_references", not log["undefined_references"] and not log["undefined_citations"],
-          {"refs": log["undefined_references"][:10], "cites": log["undefined_citations"][:10]})
+    check(
+        "no_undefined_references",
+        not log["undefined_references"] and not log["undefined_citations"],
+        {"refs": log["undefined_references"][:10], "cites": log["undefined_citations"][:10]},
+    )
     check("no_tex_errors", not log["errors"], log["errors"][:5])
     check("fonts_embedded", not report["unembedded_fonts"], report["unembedded_fonts"])
     check("a4_pages", report["all_a4"])
-    check("overfull_within_limit", log["overfull_max_pt"] <= float(ctx.cfg("paper.max_overfull_pt", 20.0)),
-          f"max {log['overfull_max_pt']} pt, count {log['overfull_count']}")
+    check(
+        "overfull_within_limit",
+        log["overfull_max_pt"] <= float(ctx.cfg("paper.max_overfull_pt", 20.0)),
+        f"max {log['overfull_max_pt']} pt, count {log['overfull_count']}",
+    )
     check("no_missing_characters", log["missing_characters"] == 0, log["missing_character_samples"])
     check("no_number_conflicts", not report["number_conflicts"], report["number_conflicts"][:5])
     check("ai_usage_pdf_present", (paper_dir / "AI工具使用详情.pdf").exists())
@@ -330,8 +404,16 @@ def qa(ctx: StageContext) -> dict[str, Any]:
         check("results_stage_present", not require_results, f"stage '{results_stage}' not completed in this run")
 
     passed = all(c["ok"] for c in checks)
-    ctx.write_json("qa_report.json", {"passed": passed, "checks": checks, "identity_watchlist_hits": watch_hits,
-                                      "results": results_reports, "paper": {k: v for k, v in report.items() if k != "fonts"}})
+    ctx.write_json(
+        "qa_report.json",
+        {
+            "passed": passed,
+            "checks": checks,
+            "identity_watchlist_hits": watch_hits,
+            "results": results_reports,
+            "paper": {k: v for k, v in report.items() if k != "fonts"},
+        },
+    )
     if not passed:
         raise RuntimeError("QA gate failed: " + ", ".join(c["name"] for c in checks if not c["ok"]))
     return {"passed": passed, "checks": len(checks), "watchlist_hits": len(watch_hits)}
@@ -343,21 +425,40 @@ def _reproduce_md(ctx: StageContext) -> str:
     manifest = json.loads((ctx.run_dir / "ingest" / "manifest.json").read_text(encoding="utf-8"))
     packages = manifest.get("runtime", {}).get("packages", {})
     lines = [
-        f"# 复现说明（run `{ctx.run_id}`）", "",
-        "本目录内所有结果均由 Modal 云端按下列阶段生成；本地只提交任务、下载和核对 SHA-256。", "",
+        f"# 复现说明（run `{ctx.run_id}`）",
+        "",
+        "本目录内所有结果均由 Modal 云端按下列阶段生成；本地只提交任务、下载和核对 SHA-256。",
+        "",
         f"- 代码版本：git `{code_ref.get('git_sha', '')}`（分支 `{code_ref.get('branch', '')}`）",
-        f"- 运行环境：Python {manifest.get('runtime', {}).get('python', '')}，{manifest.get('runtime', {}).get('platform', '')}",
-        "- 依赖版本：" + ", ".join(f"{k}=={v}" for k, v in sorted(packages.items())), "",
-        "## 阶段", "", "| 阶段 | 状态 | 用时 (s) | 输出摘要 | Modal 任务 |", "|---|---|---:|---|---|",
+        f"- 运行环境：Python {manifest.get('runtime', {}).get('python', '')}，"
+        f"{manifest.get('runtime', {}).get('platform', '')}",
+        "- 依赖版本：" + ", ".join(f"{k}=={v}" for k, v in sorted(packages.items())),
+        "",
+        "## 阶段",
+        "",
+        "| 阶段 | 状态 | 用时 (s) | 输出摘要 | Modal 任务 |",
+        "|---|---|---:|---|---|",
     ]
-    lines += [f"| {r['stage']} | {r['status']} | {r['duration_s'] or 0:.1f} | `{r['outputs_digest'][:16]}` | `{r['modal_task_id'] or ''}` |" for r in rows]
-    lines += ["", "## 复现命令", "", "```bash",
-              "python3 tools/cli.py provision",
-              "python3 tools/cli.py run ingest,validate --new-run",
-              "python3 tools/cli.py run <科学阶段...> --size medium",
-              "python3 tools/cli.py run lint,test,paper,qa,package,release",
-              "python3 tools/cli.py release --version <tag>", "```", "",
-              "每个阶段目录下的 `manifest.json` 记录输入、输出散列、参数与环境；`events.jsonl` 为结构化日志。", ""]
+    lines += [
+        f"| {r['stage']} | {r['status']} | {r['duration_s'] or 0:.1f} | `{r['outputs_digest'][:16]}` | "
+        f"`{r['modal_task_id'] or ''}` |"
+        for r in rows
+    ]
+    lines += [
+        "",
+        "## 复现命令",
+        "",
+        "```bash",
+        "python3 tools/cli.py provision",
+        "python3 tools/cli.py run ingest,validate --new-run",
+        "python3 tools/cli.py run <科学阶段...> --size medium",
+        "python3 tools/cli.py run lint,test,paper,qa,package,release",
+        "python3 tools/cli.py release --version <tag>",
+        "```",
+        "",
+        "每个阶段目录下的 `manifest.json` 记录输入、输出散列、参数与环境；`events.jsonl` 为结构化日志。",
+        "",
+    ]
     return "\n".join(lines)
 
 
@@ -373,8 +474,13 @@ def package(ctx: StageContext) -> dict[str, Any]:
     drift = sorted(actual ^ planned)
     if drift and not ctx.param("allow_member_drift"):
         raise RuntimeError(f"support material members differ from the list printed in the paper: {drift[:20]}")
-    manifest = {"run_id": ctx.run_id, "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
-                "members": [{"path": name, "sha256": sha256_file(path), "bytes": path.stat().st_size} for name, path in members]}
+    manifest = {
+        "run_id": ctx.run_id,
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "members": [
+            {"path": name, "sha256": sha256_file(path), "bytes": path.stat().st_size} for name, path in members
+        ],
+    }
     manifest_path = ctx.out("MANIFEST.json")
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     members.append(("MANIFEST.json", manifest_path))
@@ -386,7 +492,11 @@ def package(ctx: StageContext) -> dict[str, Any]:
     return {"members": zip_info["members"], "bytes": zip_info["bytes"], "drift": len(drift)}
 
 
-@stage("release", deps=("package",), description="Assemble deliverables (paper, result workbooks, support zip) with SHA-256 manifest")
+@stage(
+    "release",
+    deps=("package",),
+    description="Assemble deliverables (paper, result workbooks, support zip) with SHA-256 manifest",
+)
 def release(ctx: StageContext) -> dict[str, Any]:
     qa_report = json.loads((ctx.dep("qa") / "qa_report.json").read_text(encoding="utf-8"))
     if not qa_report["passed"] and not ctx.param("allow_failed_qa"):
@@ -401,17 +511,60 @@ def release(ctx: StageContext) -> dict[str, Any]:
         raise RuntimeError("release refused: results stage missing")
     files["支撑材料.zip"] = ctx.dep("package") / "支撑材料.zip"
     files["AI工具使用详情.pdf"] = paper_dir / "AI工具使用详情.pdf"
-    manifest: dict[str, Any] = {"run_id": ctx.run_id, "code_ref": ctx.params.get("code_ref"), "files": {},
-                                "qa_passed": qa_report["passed"], "created_at": datetime.now(UTC).isoformat(timespec="seconds")}
+    manifest: dict[str, Any] = {
+        "run_id": ctx.run_id,
+        "code_ref": ctx.params.get("code_ref"),
+        "files": {},
+        "qa_passed": qa_report["passed"],
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
     for name, source in files.items():
         if not source.exists():
             raise RuntimeError(f"release file missing: {name} ({source})")
         target = ctx.out(name)
         shutil.copy2(source, target)
         manifest["files"][name] = {"sha256": sha256_file(target), "bytes": target.stat().st_size}
-    notes = [f"# 发布说明 — run {ctx.run_id}", "", f"- 代码：`{(ctx.params.get('code_ref') or {}).get('git_sha', '')}`",
-             f"- QA：{'通过' if qa_report['passed'] else '未通过（强制发布）'}", "", "| 文件 | 字节 | SHA-256 |", "|---|---:|---|"]
+    notes = [
+        f"# 发布说明 — run {ctx.run_id}",
+        "",
+        f"- 代码：`{(ctx.params.get('code_ref') or {}).get('git_sha', '')}`",
+        f"- QA：{'通过' if qa_report['passed'] else '未通过（强制发布）'}",
+        "",
+        "| 文件 | 字节 | SHA-256 |",
+        "|---|---:|---|",
+    ]
     notes += [f"| {n} | {m['bytes']} | `{m['sha256']}` |" for n, m in manifest["files"].items()]
     ctx.out("RELEASE_NOTES.md").write_text("\n".join(notes) + "\n", encoding="utf-8")
     ctx.write_json("release_manifest.json", manifest)
-    return {"files": len(files), "paper_bytes": manifest["files"][str(ctx.cfg("release.paper_name", "论文.pdf"))]["bytes"]}
+    return {
+        "files": len(files),
+        "paper_bytes": manifest["files"][str(ctx.cfg("release.paper_name", "论文.pdf"))]["bytes"],
+    }
+
+
+FMT_IGNORE = (".git", "artifacts", "releases", "__pycache__", ".forge", ".DS_Store", ".mypy_cache", ".ruff_cache")
+
+
+@stage("fmt", description="ruff --fix and ruff format in the cloud; changed files are exported for a local copy-back")
+def fmt(ctx: StageContext) -> dict[str, Any]:
+    work = Path("/tmp/fmt")
+    shutil.rmtree(work, ignore_errors=True)
+    shutil.copytree(ctx.repo, work, ignore=shutil.ignore_patterns(*FMT_IGNORE, "*.pyc"))
+    before = hash_tree(work, ignore=FMT_IGNORE)
+    fix = subprocess.run(
+        ["ruff", "check", "--fix", "--no-cache", "--output-format", "concise", "."],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    form = subprocess.run(["ruff", "format", "--no-cache", "."], cwd=work, capture_output=True, text=True, check=False)
+    after = hash_tree(work, ignore=FMT_IGNORE)
+    changed = sorted(rel for rel in after if rel not in before or after[rel]["sha256"] != before[rel]["sha256"])
+    for rel in changed:
+        shutil.copy2(work / rel, ctx.out("files", rel))
+    ctx.out("ruff_fix.txt").write_text(fix.stdout + fix.stderr, encoding="utf-8")
+    ctx.out("ruff_format.txt").write_text(form.stdout + form.stderr, encoding="utf-8")
+    ctx.write_json("fmt_report.json", {"changed": changed, "remaining": fix.stdout.strip().splitlines()[-1:]})
+    ctx.log.info("fmt.done", changed=len(changed), remaining=fix.stdout.strip().splitlines()[-1:])
+    return {"changed": len(changed)}

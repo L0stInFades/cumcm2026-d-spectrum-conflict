@@ -88,7 +88,7 @@ class StageContext:
         try:
             import numpy as np
 
-            np.random.seed(value)
+            np.random.seed(value)  # noqa: NPY002 - legacy global RNG used by third-party libraries
         except ImportError:  # pragma: no cover
             pass
         self.log.info("seed", salt=salt, value=value)

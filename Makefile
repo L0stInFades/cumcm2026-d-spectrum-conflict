@@ -7,7 +7,7 @@ RUN ?=
 RUNFLAG := $(if $(RUN),--run-id $(RUN),)
 FORCEFLAG := $(if $(FORCE),--force,)
 
-.PHONY: help provision run pipeline exec status logs runs download release lint test paper qa package smoke
+.PHONY: fmt help provision run pipeline exec status logs runs download release lint test paper qa package smoke
 
 help:
 	@echo "make provision                 # verify cloud toolchain"
@@ -60,3 +60,6 @@ release:
 
 smoke:
 	$(CLI) run ingest,validate,lint,test,paper,qa,package,release --new-run --param require_results=false --param allow_missing_results=true
+
+fmt:
+	$(CLI) fmt $(RUNFLAG)

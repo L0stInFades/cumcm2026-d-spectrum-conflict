@@ -25,10 +25,15 @@ def run_validation(ctx: StageContext, contracts: dict[str, FrameContract]) -> di
         report["parquet"] = path.name
         reports.append(report)
         desc = df.describe(include="all").astype(str).to_dict()
-        profile[stem] = {"rows": int(len(df)), "columns": list(df.columns), "describe": desc,
-                         "nulls": {c: int(df[c].isna().sum()) for c in df.columns}}
-        ctx.log.info("validate.frame", contract=contract.name, ok=report["ok"], rows=report["rows"],
-                     errors=report["errors"][:5])
+        profile[stem] = {
+            "rows": len(df),
+            "columns": list(df.columns),
+            "describe": desc,
+            "nulls": {c: int(df[c].isna().sum()) for c in df.columns},
+        }
+        ctx.log.info(
+            "validate.frame", contract=contract.name, ok=report["ok"], rows=report["rows"], errors=report["errors"][:5]
+        )
     ok = all(r["ok"] for r in reports)
     ctx.write_json("validation_report.json", {"ok": ok, "frames": reports})
     ctx.write_json("data_profile.json", profile)

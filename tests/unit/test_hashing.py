@@ -14,7 +14,11 @@ def test_sha256_bytes_is_deterministic(data: bytes) -> None:
     assert len(sha256_bytes(data)) == 64
 
 
-@given(st.dictionaries(st.text(min_size=1, max_size=8), st.integers() | st.floats(allow_nan=False) | st.text(max_size=5), max_size=6))
+@given(
+    st.dictionaries(
+        st.text(min_size=1, max_size=8), st.integers() | st.floats(allow_nan=False) | st.text(max_size=5), max_size=6
+    )
+)
 def test_sha256_json_ignores_key_order(mapping: dict) -> None:
     reversed_mapping = dict(reversed(list(mapping.items())))
     assert sha256_json(mapping) == sha256_json(reversed_mapping)

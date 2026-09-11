@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 license = "Unlicense"
 
 [tool.ruff]
-line-length = 118
+line-length = 120
 target-version = "py311"
 extend-exclude = ["artifacts", "releases", "manuscript"]
 

@@ -31,10 +31,14 @@ def test_write_result_keeps_a1_rounds_and_passes_contract(tmp_path: Path) -> Non
     assert headers["温度"][1:] == [0.0, 0.1, 0.2]
     frames = read_sheets(tmp_path / "out.xlsx")
     assert float(frames["温度"].iloc[0, 1]) == pytest.approx(28.1235)
-    contract = WorkbookContract("out.xlsx", "tpl.xlsx", (
-        SheetContract("温度", min_rows=5, max_rows=5, header_len=4, numeric_from_col=0),
-        SheetContract("水分浓度", min_rows=5, header_len=4, numeric_from_col=0),
-    ))
+    contract = WorkbookContract(
+        "out.xlsx",
+        "tpl.xlsx",
+        (
+            SheetContract("温度", min_rows=5, max_rows=5, header_len=4, numeric_from_col=0),
+            SheetContract("水分浓度", min_rows=5, header_len=4, numeric_from_col=0),
+        ),
+    )
     report = check_workbook(tmp_path / "out.xlsx", contract, template)
     assert report["ok"], report["errors"]
 

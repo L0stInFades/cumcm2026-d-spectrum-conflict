@@ -68,14 +68,22 @@ def compile_tex(
     def xelatex(tag: str) -> None:
         proc = subprocess.run(
             ["xelatex", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", f"-jobname={jobname}", main],
-            cwd=workdir, capture_output=True, text=True, env=env, timeout=timeout, check=False,
+            cwd=workdir,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=timeout,
+            check=False,
         )
         runs.append({"pass": tag, "rc": proc.returncode})
         if proc.returncode != 0:
             log = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else proc.stdout
             errors = _ERROR.findall(log)
             raise RuntimeError(
-                f"xelatex failed on pass {tag} for {main}: " + " | ".join(errors[:5]) + "\n--- log tail ---\n" + log[-4000:]
+                f"xelatex failed on pass {tag} for {main}: "
+                + " | ".join(errors[:5])
+                + "\n--- log tail ---\n"
+                + log[-4000:]
             )
 
     xelatex("1")
@@ -83,16 +91,33 @@ def compile_tex(
     if bibtex and aux.exists():
         aux_text = aux.read_text(encoding="utf-8", errors="replace")
         if "\\citation" in aux_text and "\\bibdata" in aux_text:
-            proc = subprocess.run(["bibtex", jobname], cwd=workdir, capture_output=True, text=True, env=env,
-                                  timeout=timeout, check=False)
+            proc = subprocess.run(
+                ["bibtex", jobname], cwd=workdir, capture_output=True, text=True, env=env, timeout=timeout, check=False
+            )
             runs.append({"pass": "bibtex", "rc": proc.returncode, "tail": proc.stdout[-1500:]})
     for i in range(2, passes + 1):
         xelatex(str(i))
     log_text = log_path.read_text(encoding="utf-8", errors="replace")
-    return {"pdf": workdir / f"{jobname}.pdf", "log": log_path, "aux": aux, "runs": runs, "summary": summarize_log(log_text)}
+    return {
+        "pdf": workdir / f"{jobname}.pdf",
+        "log": log_path,
+        "aux": aux,
+        "runs": runs,
+        "summary": summarize_log(log_text),
+    }
 
 
 def tex_escape(text: str) -> str:
-    replacements = {"\\": r"\textbackslash{}", "&": r"\&", "%": r"\%", "$": r"\$", "#": r"\#", "_": r"\_",
-                    "{": r"\{", "}": r"\}", "~": r"\textasciitilde{}", "^": r"\textasciicircum{}"}
+    replacements = {
+        "\\": r"\textbackslash{}",
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
+    }
     return "".join(replacements.get(ch, ch) for ch in text)

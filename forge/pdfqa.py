@@ -20,10 +20,14 @@ def inspect_pdf(path: Path, *, with_text: bool = True) -> dict[str, Any]:
     unembedded: list[str] = []
     for index, page in enumerate(doc, start=1):
         rect = page.rect
-        pages.append({
-            "page": index, "width_pt": round(rect.width, 2), "height_pt": round(rect.height, 2),
-            "a4": abs(rect.width - A4_PT[0]) < 3 and abs(rect.height - A4_PT[1]) < 3,
-        })
+        pages.append(
+            {
+                "page": index,
+                "width_pt": round(rect.width, 2),
+                "height_pt": round(rect.height, 2),
+                "a4": abs(rect.width - A4_PT[0]) < 3 and abs(rect.height - A4_PT[1]) < 3,
+            }
+        )
         if with_text:
             texts.append(page.get_text("text"))
         for font in page.get_fonts(full=True):
@@ -34,15 +38,19 @@ def inspect_pdf(path: Path, *, with_text: bool = True) -> dict[str, Any]:
             if not embedded and xref:
                 try:
                     embedded = len(doc.extract_font(xref)[3]) > 0
-                except Exception:  # noqa: BLE001
+                except Exception:
                     embedded = False
             fonts[xref] = {"name": basefont, "type": ftype, "embedded": bool(embedded)}
             if not embedded:
                 unembedded.append(basefont)
     return {
-        "pages": len(doc), "page_boxes": pages, "all_a4": all(p["a4"] for p in pages),
-        "fonts": list(fonts.values()), "unembedded_fonts": sorted(set(unembedded)),
-        "texts": texts, "metadata": doc.metadata,
+        "pages": len(doc),
+        "page_boxes": pages,
+        "all_a4": all(p["a4"] for p in pages),
+        "fonts": list(fonts.values()),
+        "unembedded_fonts": sorted(set(unembedded)),
+        "texts": texts,
+        "metadata": doc.metadata,
     }
 
 

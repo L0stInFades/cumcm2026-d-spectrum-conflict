@@ -9,7 +9,10 @@ from forge.contracts import Column, FrameContract, validate_frame
 
 CONTRACT = FrameContract(
     name="t",
-    columns=(Column("t", "int", min=0, unique=True, monotonic="increasing", step=60), Column("v", "float", min=0, max=1)),
+    columns=(
+        Column("t", "int", min=0, unique=True, monotonic="increasing", step=60),
+        Column("v", "float", min=0, max=1),
+    ),
     min_rows=2,
 )
 
@@ -44,8 +47,9 @@ def test_property_ranges_within_bounds_always_pass(values: list[float]) -> None:
 
 
 def test_regex_and_custom_checks() -> None:
-    contract = FrameContract("ids", (Column("id", "str", regex=r"[ABC]\d{3}"),),
-                             checks=(lambda df: ["custom"] if len(df) > 1 else [],))
+    contract = FrameContract(
+        "ids", (Column("id", "str", regex=r"[ABC]\d{3}"),), checks=(lambda df: ["custom"] if len(df) > 1 else [],)
+    )
     assert validate_frame(pd.DataFrame({"id": ["A001"]}), contract)["ok"]
     report = validate_frame(pd.DataFrame({"id": ["A001", "Z9"]}), contract)
     assert any("violate" in e for e in report["errors"]) and "custom" in report["errors"]

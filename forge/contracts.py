@@ -37,7 +37,7 @@ class FrameContract:
 
 def normalise_columns(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    out.columns = [str(c).strip() for c in out.columns]
+    out.columns = pd.Index([str(c).strip() for c in out.columns])
     return out
 
 
@@ -113,10 +113,14 @@ def validate_frame(df: pd.DataFrame, contract: FrameContract) -> dict[str, Any]:
     for check in contract.checks:
         try:
             errors.extend(check(df))
-        except Exception as exc:  # noqa: BLE001 - a broken check must surface as a contract error
+        except Exception as exc:
             errors.append(f"check {getattr(check, '__name__', check)!r} raised {exc!r}")
 
     return {
-        "contract": contract.name, "ok": not errors, "rows": n, "columns": list(df.columns),
-        "errors": errors, "warnings": warnings,
+        "contract": contract.name,
+        "ok": not errors,
+        "rows": n,
+        "columns": list(df.columns),
+        "errors": errors,
+        "warnings": warnings,
     }

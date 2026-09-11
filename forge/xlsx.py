@@ -16,15 +16,17 @@ BIG_SHEET_CELLS = 300_000
 
 def read_sheets(path: Path, header: int | None = 0) -> dict[str, pd.DataFrame]:
     with pd.ExcelFile(path) as xf:
-        return {name: xf.parse(name, header=header) for name in xf.sheet_names}
+        return {str(name): xf.parse(name, header=header) for name in xf.sheet_names}
 
 
 def sheet_headers(path: Path) -> dict[str, list[Any]]:
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     out: dict[str, list[Any]] = {}
     for ws in wb.worksheets:
-        row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ())
-        out[ws.title] = list(row)
+        row = list(next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ()))
+        while row and row[-1] is None:
+            row.pop()
+        out[str(ws.title)] = row
     wb.close()
     return out
 
@@ -74,23 +76,22 @@ def write_result(
             ws = wb.create_sheet(name)
             if name in materialised:
                 header, rows = materialised[name]
-                full_header = [a1[name]] + list(header[1:])
+                full_header = [a1[name], *header[1:]]
                 ws.append(full_header)
                 for row in rows:
                     ws.append([_clean(v, decimals) for v in row])
                 stats[name] = {"rows": len(rows), "cols": len(full_header)}
             else:
-                for row in template_wb[name].iter_rows(values_only=True):
-                    ws.append(list(row))
+                for tpl_row in template_wb[name].iter_rows(values_only=True):
+                    ws.append(list(tpl_row))
         wb.save(out)
     else:
         wb = template_wb
         for name, (header, rows) in materialised.items():
-            ws = wb[name]
-            for row in ws.iter_rows():
-                for cell in row:
-                    cell.value = None
-            full_header = [a1[name]] + list(header[1:])
+            index = wb.sheetnames.index(name)
+            wb.remove(wb[name])
+            ws = wb.create_sheet(name, index)  # fresh sheet: no stale template cells or dimensions
+            full_header = [a1[name], *header[1:]]
             for j, value in enumerate(full_header, start=1):
                 ws.cell(row=1, column=j, value=_clean(value, None))
             for i, row in enumerate(rows, start=2):
@@ -129,7 +130,7 @@ def check_workbook(path: Path, contract: WorkbookContract, template: Path) -> di
         return {"file": contract.file, "ok": False, "errors": ["file missing"], "sheets": {}}
     try:
         tpl_headers = sheet_headers(template)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         tpl_headers = {}
         errors.append(f"template unreadable: {exc!r}")
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
@@ -143,7 +144,8 @@ def check_workbook(path: Path, contract: WorkbookContract, template: Path) -> di
             continue
         ws = wb[sc.name]
         rows = ws.iter_rows(values_only=True)
-        header = list(next(rows, ()))
+        first = next(rows, None)
+        header: list[Any] = list(first) if first is not None else []
         while header and header[-1] is None:
             header.pop()
         tpl = tpl_headers.get(sc.name)
@@ -182,7 +184,10 @@ def check_workbook(path: Path, contract: WorkbookContract, template: Path) -> di
             errors.append(f"{sc.name}: {bad_decimals} cells with more than {sc.decimals} decimals")
         if bad_text:
             errors.append(f"{sc.name}: {bad_text} empty cells in required text columns")
-        report[sc.name] = {"rows": n, "header": [str(h) for h in header[:6]] + (["…"] if len(header) > 6 else []),
-                           "blank": blank}
+        report[sc.name] = {
+            "rows": n,
+            "header": [str(h) for h in header[:6]] + (["…"] if len(header) > 6 else []),
+            "blank": blank,
+        }
     wb.close()
     return {"file": contract.file, "ok": not errors, "errors": errors, "sheets": report}

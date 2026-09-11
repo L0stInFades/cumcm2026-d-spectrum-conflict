@@ -11,8 +11,17 @@ from .hashing import sha256_file
 
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 SKIP_PARTS = {
-    ".git", "__pycache__", ".DS_Store", ".mypy_cache", ".ruff_cache", ".pytest_cache",
-    ".hypothesis", "artifacts", "releases", ".forge", "build",
+    ".git",
+    "__pycache__",
+    ".DS_Store",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    ".hypothesis",
+    "artifacts",
+    "releases",
+    ".forge",
+    "build",
 }
 
 
@@ -61,5 +70,10 @@ def build_zip(members: Iterable[tuple[str, Path]], out: Path, *, comment: str = 
         count = len(zf.namelist())
     if bad:
         raise RuntimeError(f"zip member failed CRC check: {bad}")
-    return {"path": str(out), "members": count, "uncompressed_bytes": total, "bytes": out.stat().st_size,
-            "sha256": sha256_file(out)}
+    return {
+        "path": str(out),
+        "members": count,
+        "uncompressed_bytes": total,
+        "bytes": out.stat().st_size,
+        "sha256": sha256_file(out),
+    }

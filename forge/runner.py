@@ -22,8 +22,16 @@ from .manifest import Manifest
 
 StageFn = Callable[[StageContext], dict[str, Any] | None]
 CODE_IGNORE = (
-    ".git", "artifacts", "releases", "__pycache__", ".mypy_cache", ".ruff_cache",
-    ".pytest_cache", ".hypothesis", ".DS_Store", ".forge",
+    ".git",
+    "artifacts",
+    "releases",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    ".hypothesis",
+    ".DS_Store",
+    ".forge",
 )
 
 
@@ -77,8 +85,12 @@ def execute(
     discover(repo)
     if stage_name == "all":
         results = [execute(s, run_id, params, force, repo, vol, commit) for s in params.get("stages", [])]
-        return {"stage": "all", "run_id": run_id, "results": results,
-                "status": "completed" if all(r.get("status") in {"completed", "skipped"} for r in results) else "failed"}
+        return {
+            "stage": "all",
+            "run_id": run_id,
+            "results": results,
+            "status": "completed" if all(r.get("status") in {"completed", "skipped"} for r in results) else "failed",
+        }
     if stage_name not in STAGES:
         raise KeyError(f"unknown stage {stage_name!r}; known stages: {sorted(STAGES)}")
     spec = STAGES[stage_name]
@@ -89,9 +101,13 @@ def execute(
     if manifest_path.exists() and not force:
         previous = Manifest.read(manifest_path)
         if previous.status == "completed":
-            return {"stage": stage_name, "run_id": run_id, "status": "skipped",
-                    "reason": "already completed in this run (use --force to rerun)",
-                    "outputs_digest": previous.outputs_digest}
+            return {
+                "stage": stage_name,
+                "run_id": run_id,
+                "status": "skipped",
+                "reason": "already completed in this run (use --force to rerun)",
+                "outputs_digest": previous.outputs_digest,
+            }
 
     deps_digest: dict[str, str] = {}
     for dep in spec.deps:
@@ -139,7 +155,11 @@ def execute(
     if commit:
         commit()
     return {
-        "stage": stage_name, "run_id": run_id, "status": "completed", "duration_s": manifest.duration_s,
-        "metrics": manifest.metrics, "outputs_digest": manifest.outputs_digest,
+        "stage": stage_name,
+        "run_id": run_id,
+        "status": "completed",
+        "duration_s": manifest.duration_s,
+        "metrics": manifest.metrics,
+        "outputs_digest": manifest.outputs_digest,
         "modal_task_id": manifest.runtime.get("modal_task_id"),
     }
