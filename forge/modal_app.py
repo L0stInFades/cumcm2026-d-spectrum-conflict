@@ -86,7 +86,7 @@ def _run(stage: str, run_id: str, params_json: str, force: bool) -> dict:
     from forge.runner import execute
 
     params = json.loads(params_json or "{}")
-    return execute(stage=stage, run_id=run_id, params=params, force=force,
+    return execute(stage_name=stage, run_id=run_id, params=params, force=force,
                    repo=Path("/repo"), vol=Path("/vol"), commit=volume.commit)
 
 
