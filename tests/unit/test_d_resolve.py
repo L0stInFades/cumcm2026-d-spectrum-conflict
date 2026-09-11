@@ -19,6 +19,7 @@ from pipelines.d.resolve import (
     solve_lexicographic_cpsat,
     solve_lexicographic_highs,
     solve_weighted_cpsat,
+    strengthen,
     table_from_decisions,
 )
 from pipelines.d.synth import exhaustive_lexicographic, tiny_instance
@@ -109,3 +110,30 @@ def test_validator_rejects_illegal_decisions() -> None:
     ]
     report = validate_resolution([a, b], unresolved, fmax=10, tmax=5)
     assert not report["ok"] and report["remaining_conflicts"] == 1
+
+
+def test_strengthen_detects_forced_cancellation_and_keeps_optimum() -> None:
+    a = Plan("A001", "A", 0, 10, 0, 5, 60, 3)
+    b = Plan("B001", "B", 0, 10, 0, 5, 60, 3)
+    model = build_cell_model([a, b], [enumerate_options(p, Limits(fmax=0, tmax=0)) for p in (a, b)])
+    strength = strengthen(model)
+    assert strength.forced == [(0, 1)] and strength.interacting_pairs == 1 and strength.groups
+    for seed in (21, 22):
+        plans = tiny_instance(seed, n_plans=5)
+        limits = Limits(fmax=2, tmax=1)
+        model = build_cell_model(plans, [enumerate_options(p, limits) for p in plans])
+        truth = exhaustive_lexicographic(plans, limits, canonical_levels, model)
+        res = solve_lexicographic_cpsat(
+            model, canonical_levels(model), seed=1, workers=2, time_limit=60, strength=strengthen(model)
+        )
+        assert res["all_optimal"] and res["vector"] == truth
+        highs = solve_lexicographic_highs(
+            model,
+            canonical_levels(model),
+            seed=1,
+            threads=2,
+            time_limit=60,
+            reference=truth,
+            strength=strengthen(model),
+        )
+        assert highs["agrees_with_reference"] and highs["vector"] == truth
