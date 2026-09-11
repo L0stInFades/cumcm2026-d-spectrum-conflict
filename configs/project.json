@@ -1,0 +1,18 @@
+{
+  "letter": "D",
+  "package": "d",
+  "slug": "spectrum-conflict",
+  "title": "时频冲突检测与消解",
+  "app": "cumcm2026-d-spectrum-conflict",
+  "volume": "cumcm2026-d-artifacts",
+  "problem_pdf": "D题.pdf",
+  "attachments_dir": "附件",
+  "templates_dir": "附件/附件2",
+  "result_files": [
+    "result1.xlsx",
+    "result2.xlsx",
+    "result3.xlsx",
+    "result4.xlsx"
+  ],
+  "github_repo": "cumcm2026-d-spectrum-conflict"
+}

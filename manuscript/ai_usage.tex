@@ -1,0 +1,22 @@
+% 独立编译为《AI工具使用详情.pdf》（forge paper 阶段）。内容由 AI_USAGE.md 的记录整理，须与实际使用一致。
+\documentclass[UTF8,zihao=-4,fontset=none,a4paper]{ctexart}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs,longtable,array,xurl}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=black]{hyperref}
+\setCJKmainfont{Noto Serif CJK SC}[BoldFont={Noto Serif CJK SC Bold}]
+\setCJKsansfont{Noto Sans CJK SC}[BoldFont={Noto Sans CJK SC Bold}]
+\setCJKmonofont{Noto Sans Mono CJK SC}
+\linespread{1.25}
+\begin{document}
+\begin{center}{\LARGE\bfseries AI 工具使用详情}\\[6pt]{\large 时频冲突检测与消解（CUMCM 2026 D 题）}\end{center}
+
+\section*{一、使用的工具}
+\begin{longtable}{@{}p{0.28\linewidth}p{0.66\linewidth}@{}}
+\toprule 工具 & 用途 \\ \midrule \endhead \bottomrule \endfoot
+Anthropic Claude Code（模型 Claude Fable 5.1） & 问题分析、模型与算法方案比较、程序编写与调试、实验组织、数值核验、图表绘制、论文文字组织与改写 \\
+Modal（云计算平台） & 全部数据处理、数值计算、测试、图表生成、LaTeX 排版与打包 \\
+\end{longtable}
+
+\section*{二、使用环节与人工核验}
+\input{sections/ai_usage_body.tex}
+\end{document}

@@ -1,0 +1,34 @@
+[project]
+name = "cumcm2026-d"
+version = "0.1.0"
+description = "时频冲突检测与消解 — cloud-only reproducible modelling study (CUMCM 2026 Problem D)"
+requires-python = ">=3.11"
+license = "Unlicense"
+
+[tool.ruff]
+line-length = 118
+target-version = "py311"
+extend-exclude = ["artifacts", "releases", "manuscript"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY", "RUF", "S102"]
+ignore = ["RUF001", "RUF002", "RUF003", "E741", "B905"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "B011"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = false
+no_implicit_optional = true
+exclude = "(artifacts|releases|manuscript)/"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider -q"
+markers = ["integration: needs the mounted repository inputs (runs in Modal)"]
+
+[tool.coverage.run]
+source = ["forge", "pipelines"]

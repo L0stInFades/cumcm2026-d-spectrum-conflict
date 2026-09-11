@@ -1,0 +1,20 @@
+# 门禁在 Modal 上执行（不在 GitHub Runner 上计算）。需要在仓库 Secrets 中配置 MODAL_TOKEN_ID / MODAL_TOKEN_SECRET。
+name: forge-gates
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.MODAL_TOKEN_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install modal==1.4.2
+      - env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: python3 tools/cli.py run ingest,validate,lint,test --new-run

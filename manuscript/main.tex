@@ -1,0 +1,114 @@
+% =====================================================================
+%  时频冲突检测与消解 — CUMCM 2026 Problem D
+%  Compiled only in Modal (forge `paper` stage). Every numeric value in the text
+%  comes from generated/numbers.tex (\val<Key>) or generated/tables/*.tex; never
+%  type a result by hand. Layout rules: abstract page = page 1; body (incl.
+%  references) <= 30 pages; appendices unlimited; no identity information.
+% =====================================================================
+\documentclass[UTF8,zihao=-4,fontset=none,a4paper]{ctexart}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,bm,mathtools}
+\usepackage{booktabs,longtable,tabularx,array,multirow,makecell}
+\usepackage{graphicx,float,caption,subcaption,xcolor}
+\usepackage{fancyhdr,needspace,placeins,enumitem}
+\usepackage{siunitx}
+\usepackage[ruled,linesnumbered,vlined]{algorithm2e}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
+\usepackage{listings}
+\usepackage{xurl}
+\usepackage[colorlinks=true,linkcolor=ink,citecolor=ink,urlcolor=ink,pdfauthor={},pdftitle={时频冲突检测与消解}]{hyperref}
+
+\setCJKmainfont{Noto Serif CJK SC}[BoldFont={Noto Serif CJK SC Bold}]
+\setCJKsansfont{Noto Sans CJK SC}[BoldFont={Noto Sans CJK SC Bold}]
+\setCJKmonofont{Noto Sans Mono CJK SC}
+\definecolor{ink}{HTML}{1F3A5F}
+\definecolor{accent}{HTML}{B85C00}
+\ctexset{
+  section={format=\Large\bfseries\sffamily\color{ink}, beforeskip=1.4ex plus .4ex, afterskip=1ex},
+  subsection={format=\large\bfseries\sffamily},
+  subsubsection={format=\normalsize\bfseries\sffamily},
+}
+\captionsetup{font=small,labelfont=bf,labelsep=quad,skip=6pt}
+\sisetup{detect-all,per-mode=symbol,range-phrase={--},range-units=single}
+\linespread{1.25}
+\setlength{\parskip}{0.15em}
+\setlength{\parindent}{2em}
+\renewcommand{\arraystretch}{1.12}
+\pagestyle{fancy}\fancyhf{}\fancyfoot[C]{\small\thepage}\renewcommand{\headrulewidth}{0pt}
+\graphicspath{{figures/}}
+\lstset{basicstyle=\ttfamily\fontsize{7.2}{8.8}\selectfont,breaklines=true,columns=fullflexible,keepspaces=true,
+  showstringspaces=false,frame=single,framerule=0.2pt,rulecolor=\color{gray!60},numbers=left,
+  numberstyle=\tiny\color{gray},numbersep=6pt,tabsize=4,upquote=true,extendedchars=true,
+  postbreak=\mbox{\textcolor{gray}{$\hookrightarrow$}\space},commentstyle=\color{gray!85},
+  keywordstyle=\color{ink},stringstyle=\color{accent}}
+\newtheorem{theorem}{定理}[section]
+\newtheorem{proposition}[theorem]{命题}
+\newtheorem{lemma}[theorem]{引理}
+\newtheorem{corollary}[theorem]{推论}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{定义}
+\newtheorem{assumption}{假设}
+\newtheorem{remark}[theorem]{注}
+\newcommand{\paperfigure}[4][\linewidth]{\begin{figure}[htbp]\centering\includegraphics[width=#1]{#2}\caption{#3}\label{#4}\end{figure}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\pdv}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\pdd}[2]{\frac{\partial^2 #1}{\partial #2^2}}
+\input{generated/meta.tex}
+\input{generated/numbers.tex}
+
+\begin{document}
+\setcounter{page}{1}
+\begin{center}
+{\LARGE\bfseries\sffamily\color{ink} 时频冲突检测与消解}\\[10pt]
+{\large\bfseries 摘\quad 要}
+\end{center}
+\input{sections/00_abstract.tex}
+\label{page:abstract-end}
+\newpage
+
+\section{问题重述}
+\input{sections/01_restatement.tex}
+
+\section{问题分析}
+\input{sections/02_analysis.tex}
+
+\section{模型假设与符号说明}
+\input{sections/03_assumptions.tex}
+
+\input{sections/04_models.tex}
+
+\section{模型检验}
+\label{sec:validation}
+\input{sections/08_validation.tex}
+
+\section{模型评价与推广}
+\input{sections/09_evaluation.tex}
+
+\input{sections/10_ai_statement.tex}
+
+\begingroup
+\linespread{1.1}\small
+\IfFileExists{gbt7714.sty}{\bibliographystyle{gbt7714-numerical}}{\bibliographystyle{unsrt}}
+\bibliography{references}
+\endgroup
+\label{page:body-end}
+
+\clearpage
+\appendix
+\section{支撑材料文件清单}
+\label{app:support}
+下表列出支撑材料压缩包内的全部文件（相对路径）及其用途。压缩包内另含 \texttt{MANIFEST.json}，记录每个文件的 SHA-256。
+\input{generated/support_files.tex}
+
+\section{复现记录}
+\label{app:repro}
+论文中的全部数值、表格与图形均由同一次云端运行（run \texttt{\RunId}，代码版本 \texttt{\CodeSha}，构建日期 \BuildDate）生成。各阶段状态与输出摘要如下。
+\input{generated/repro_table.tex}
+\input{sections/appendix_repro.tex}
+
+\section{完整程序}
+\label{app:code}
+以下按文件收录建模、求解、检验、绘图、排版与打包的全部源程序，文件名与附录~\ref{app:support} 一致。运行方式见附录~\ref{app:repro}。
+\input{generated/code_listing.tex}
+\end{document}

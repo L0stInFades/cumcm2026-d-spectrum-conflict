@@ -1,0 +1,39 @@
+# Forge 运行时配置（默认档）。Stage 代码通过 ctx.cfg("a.b.c") 读取；
+# `--profile <name>` 会叠加 configs/<name>.toml；`--param config_overrides='{...}'` 可临时覆盖。
+
+[run]
+seed = 20260912
+
+[gates]
+lint_required = ["ruff_check", "ruff_format", "mypy"]
+mypy_paths = ["forge"]
+
+[paper]
+main = "main.tex"
+# 需在同一 run 中已完成的 stage；其 tables/*.tex 与 figures/*.pdf|png 会被并入排版
+sources = []
+max_body_pages = 30
+max_overfull_pt = 20.0
+code_globs = [
+  "forge/**/*.py", "pipelines/**/*.py", "tools/**/*.py", "tests/**/*.py",
+  "configs/*.toml", "configs/*.json", "Makefile", "pyproject.toml",
+]
+
+[qa]
+required_stages = ["lint", "test"]
+results_stage = "results"
+require_results = true
+identity_denylist = []                       # 硬门禁（正则）：出现即失败
+identity_watchlist = ["大学", "学院", "赛区", "队号", "指导教师", "@"]   # 软提示：写入报告供复核
+
+[package]
+stages = ["ingest", "validate", "results", "figures", "tables", "lint", "test", "qa"]
+code_globs = [
+  "forge/**/*.py", "pipelines/**/*.py", "tools/**/*.py", "tests/**/*.py", "configs/**",
+  "manuscript/**/*.tex", "manuscript/**/*.bib", "docs/**/*.md", "Makefile", "pyproject.toml",
+  "README.md", "UNLICENSE", "AI_USAGE.md",
+]
+max_bytes = 20971520
+
+[release]
+paper_name = "论文.pdf"
