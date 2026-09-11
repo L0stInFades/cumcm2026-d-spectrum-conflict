@@ -121,3 +121,10 @@ def tex_escape(text: str) -> str:
         "^": r"\textasciicircum{}",
     }
     return "".join(replacements.get(ch, ch) for ch in text)
+
+
+def tex_path(path: str) -> str:
+    """Typeset a file path so that it can break across lines (hyperref/xurl); falls back to \\texttt."""
+    if any(ch in path for ch in "{}%#\\"):
+        return f"\\texttt{{{tex_escape(path)}}}"
+    return f"\\nolinkurl{{{path}}}"

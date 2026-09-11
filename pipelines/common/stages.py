@@ -18,7 +18,7 @@ from forge import packaging, pdfqa, xlsx
 from forge.context import StageContext
 from forge.hashing import hash_tree, sha256_file
 from forge.runner import stage
-from forge.tex import aux_page, compile_tex, tex_escape
+from forge.tex import aux_page, compile_tex, tex_escape, tex_path
 
 PLANNED_STAGE_FILES = {
     "lint": ["ruff_check.txt", "ruff_format.txt", "mypy.txt", "lint_report.json", "manifest.json", "events.jsonl"],
@@ -45,6 +45,12 @@ MEMBER_DESCRIPTIONS = (
     (r"manifest\.json$", "阶段清单（输入输出散列、环境、参数）"),
     (r"events\.jsonl$", "结构化运行日志"),
     (r"^AI工具使用详情\.pdf$", "AI 工具使用详情"),
+    (r"^AI_USAGE\.md$", "AI 工具使用记录（源文件）"),
+    (r"^Makefile$", "本地快捷命令（只提交云端任务）"),
+    (r"^pyproject\.toml$", "项目元数据与静态检查配置"),
+    (r"^README\.md$", "仓库说明与复现入口"),
+    (r"^CHANGELOG\.md$", "变更记录"),
+    (r"^UNLICENSE$", "公有领域声明（Unlicense）"),
     (r"^REPRODUCE\.md$", "复现说明"),
     (r"^MANIFEST\.json$", "支撑材料成员清单与 SHA-256"),
 )
@@ -273,7 +279,7 @@ def paper(ctx: StageContext) -> dict[str, Any]:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, target)
         language = {".py": "Python", ".tex": "[LaTeX]TeX"}.get(src.suffix, "{}")
-        listing.append(f"\\needspace{{6\\baselineskip}}\\subsection*{{\\texttt{{{tex_escape(rel)}}}}}")
+        listing.append(f"\\needspace{{6\\baselineskip}}\\subsection*{{{tex_path(rel)}}}")
         listing.append(f"\\lstinputlisting[language={language}]{{code/{rel}}}")
     (generated / "code_listing.tex").write_text("\n".join(listing) + "\n", encoding="utf-8")
 
@@ -283,7 +289,7 @@ def paper(ctx: StageContext) -> dict[str, Any]:
         "\\begin{longtable}{@{}p{0.64\\linewidth}p{0.32\\linewidth}@{}}",
         "\\toprule 文件 & 说明 \\\\ \\midrule \\endhead \\bottomrule \\endfoot",
     ]
-    rows += [f"\\texttt{{{tex_escape(name)}}} & {tex_escape(_describe(name))} \\\\" for name, _ in members]
+    rows += [f"{tex_path(name)} & {tex_escape(_describe(name))} \\\\" for name, _ in members]
     rows.append("\\end{longtable}")
     (generated / "support_files.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
     ctx.write_json("support_members.json", [name for name, _ in members])
