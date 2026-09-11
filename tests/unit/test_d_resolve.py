@@ -30,7 +30,7 @@ def test_option_enumeration_respects_bounds_and_single_parameter() -> None:
     opts = enumerate_options(plan, Limits(fmax=10, tmax=5))
     freq = sorted(o.delta for o in opts if o.kind == "freq")
     time = sorted(o.delta for o in opts if o.kind == "time")
-    assert freq == list(range(-10, 0)) + [1, 2]  # band interval must stay inside [0,100)
+    assert freq == [*range(-10, 0), 1, 2]  # band interval must stay inside [0,100)
     assert time == [-2, -1, 1, 2, 3, 4, 5]  # start must stay >= 0
     assert [o.kind for o in opts].count("keep") == 1 and [o.kind for o in opts].count("cancel") == 1
     assert all(o.kind != "gap" for o in opts)

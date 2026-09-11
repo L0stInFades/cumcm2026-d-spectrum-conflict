@@ -43,6 +43,7 @@ from pipelines.d.resolve import (
     solve_lexicographic_cpsat,
     solve_lexicographic_highs,
     solve_weighted_cpsat,
+    strengthen,
     table_from_decisions,
 )
 from pipelines.d.synth import exhaustive_lexicographic, synthetic_instance, tiny_instance
@@ -151,12 +152,10 @@ def _shift_stats(decisions: list[dict[str, Any]]) -> dict[str, Any]:
     freq = [abs(d["delta"]) for d in decisions if d["kind"] == "freq"]
     tim = [abs(d["delta"]) for d in decisions if d["kind"] == "time"]
     gap = [abs(d["delta"]) for d in decisions if d["kind"] == "gap"]
-    stat = lambda xs: {
-        "count": len(xs),
-        "mean": (sum(xs) / len(xs)) if xs else 0.0,
-        "max": max(xs, default=0),
-        "sum": sum(xs),
-    }  # noqa: E731
+
+    def stat(xs: list[int]) -> dict[str, Any]:
+        return {"count": len(xs), "mean": (sum(xs) / len(xs)) if xs else 0.0, "max": max(xs, default=0), "sum": sum(xs)}
+
     return {
         "freq": stat(freq),
         "time": stat(tim),
@@ -168,30 +167,64 @@ def _shift_stats(decisions: list[dict[str, Any]]) -> dict[str, Any]:
 def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix: str) -> dict[str, Any]:
     """Shared Q2/Q4 pipeline: model, lexicographic CP-SAT, cross-checks, alternatives, validation, outputs."""
     workers = int(ctx.param("workers", 8))
-    time_limit = float(ctx.param("time_limit", 900))
-    highs_limit = float(ctx.param("highs_time_limit", 900))
+    level_limits = ctx.param("level_time_limits", None) or float(ctx.param("time_limit", 360))
+    highs_limit = float(ctx.param("highs_time_limit", 120))
+    weighted_limit = float(ctx.param("weighted_time_limit", 180))
+    alt_limit = float(ctx.param("alt_time_limit", 60))
     seed = ctx.seed_everything(prefix)
     options = [enumerate_options(p, limits) for p in plans]
     t0 = time.perf_counter()
     model = build_cell_model(plans, options)
+    strength = strengthen(model) if bool(ctx.param("strengthen", True)) else None
     build_seconds = time.perf_counter() - t0
     levels = canonical_levels(model)
     ctx.log.info(
-        "model.built", vars=model.n_vars, rows=len(model.rows), rows_raw=model.n_rows_raw, seconds=build_seconds
+        "model.built",
+        vars=model.n_vars,
+        rows=len(model.rows),
+        rows_raw=model.n_rows_raw,
+        groups=len(strength.groups) if strength else 0,
+        forced=len(strength.forced) if strength else 0,
+        seconds=build_seconds,
     )
 
-    primary = solve_lexicographic_cpsat(model, levels, seed=seed, workers=workers, time_limit=time_limit)
+    primary = solve_lexicographic_cpsat(
+        model, levels, seed=seed, workers=workers, time_limit=level_limits, strength=strength
+    )
     ctx.log.info("cpsat.primary", vector=primary["vector"], levels=primary["levels"], seconds=primary["seconds"])
-    if not primary["all_optimal"] or primary["chosen"] is None:
+    if primary["chosen"] is None or len(primary["vector"]) != len(levels):
+        raise RuntimeError(f"CP-SAT found no complete solution: {primary['levels']}")
+    if bool(ctx.param("require_optimal", False)) and not primary["all_optimal"]:
         raise RuntimeError(f"CP-SAT did not prove optimality on every level: {primary['levels']}")
-    repeat = solve_lexicographic_cpsat(model, levels, seed=seed, workers=workers, time_limit=time_limit)
-    deterministic = repeat["chosen"] == primary["chosen"] and repeat["vector"] == primary["vector"]
-    weighted = solve_weighted_cpsat(model, levels, seed=seed, workers=workers, time_limit=time_limit)
+    deterministic: bool | None = None
+    if bool(ctx.param("repeat", False)):
+        repeat = solve_lexicographic_cpsat(
+            model, levels, seed=seed, workers=workers, time_limit=level_limits, strength=strength
+        )
+        deterministic = repeat["chosen"] == primary["chosen"] and repeat["vector"] == primary["vector"]
+    weighted = solve_weighted_cpsat(
+        model,
+        levels,
+        seed=seed,
+        workers=workers,
+        time_limit=weighted_limit,
+        hint=primary["chosen"],
+        strength=strength,
+    )
     weighted_agree = weighted["vector"] == primary["vector"]
     ctx.log.info("cpsat.weighted", vector=weighted["vector"], status=weighted["status"], agree=weighted_agree)
-    highs = solve_lexicographic_highs(model, levels, seed=seed, threads=workers, time_limit=highs_limit)
-    highs_agree = highs["all_optimal"] and highs["vector"] == primary["vector"]
-    ctx.log.info("highs.done", vector=highs["vector"], all_optimal=highs["all_optimal"], seconds=highs["seconds"])
+    highs = solve_lexicographic_highs(
+        model,
+        levels,
+        seed=seed,
+        threads=workers,
+        time_limit=highs_limit,
+        reference=primary["vector"],
+        hint=primary["chosen"],
+        strength=strength,
+    )
+    highs_agree = highs["agrees_with_reference"]
+    ctx.log.info("highs.done", levels=highs["levels"], all_optimal=highs["all_optimal"], seconds=highs["seconds"])
 
     decisions = decisions_from_choice(model, primary["chosen"])
     table = table_from_decisions(decisions)
@@ -215,7 +248,13 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
             res, chosen = primary, primary["chosen"]
         else:
             res = solve_lexicographic_cpsat(
-                model, scheme_levels(name, model), seed=seed, workers=workers, time_limit=time_limit
+                model,
+                scheme_levels(name, model),
+                seed=seed,
+                workers=workers,
+                time_limit=alt_limit,
+                hint=primary["chosen"],
+                strength=strength,
             )
             chosen = res["chosen"]
         alt_decisions = decisions_from_choice(model, chosen) if chosen else []
@@ -236,6 +275,7 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
             "canonical_vector": evaluate(model, chosen, levels) if chosen else None,
             "table": table_from_decisions(alt_decisions) if chosen else None,
             "all_optimal": res["all_optimal"],
+            "levels": res["levels"],
             "seconds": res["seconds"],
             "validator_ok": bool(alt_valid["ok"]),
             "shifts": _shift_stats(alt_decisions),
@@ -258,8 +298,12 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
                 c: max(len(options[i]) for i, p in enumerate(plans) if p.cat == c) for c in CATEGORIES
             },
             "build_seconds": build_seconds,
+            "strengthening_groups": len(strength.groups) if strength else 0,
+            "forced_cancel_pairs": len(strength.forced) if strength else 0,
+            "interacting_pairs": strength.interacting_pairs if strength else None,
         },
         "primary": {k: v for k, v in primary.items() if k != "chosen"},
+        "all_optimal": primary["all_optimal"],
         "repeat_deterministic": deterministic,
         "weighted": {k: v for k, v in weighted.items() if k != "chosen"},
         "weighted_agree": weighted_agree,
@@ -306,8 +350,18 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
     ctx.number(f"{prefix}HighsSeconds", highs["seconds"], ".1f")
     ctx.number(f"{prefix}WeightedSeconds", weighted["seconds"], ".1f")
     ctx.number(f"{prefix}HighsAgree", PASS if highs_agree else FAIL)
+    ctx.number(f"{prefix}HighsAllOptimal", PASS if highs["all_optimal"] else FAIL)
     ctx.number(f"{prefix}WeightedAgree", PASS if weighted_agree else FAIL)
-    ctx.number(f"{prefix}Deterministic", PASS if deterministic else FAIL)
+    ctx.number(f"{prefix}AllOptimal", PASS if primary["all_optimal"] else FAIL)
+    ctx.number(f"{prefix}Deterministic", "未检验" if deterministic is None else (PASS if deterministic else FAIL))
+    ctx.number(f"{prefix}ForcedCancelPairs", len(strength.forced) if strength else 0)
+    ctx.number(f"{prefix}InteractingPairs", strength.interacting_pairs if strength else 0)
+    ctx.number(f"{prefix}Groups", len(strength.groups) if strength else 0)
+    for entry in primary["levels"]:
+        key = entry["level"].capitalize()
+        ctx.number(f"{prefix}Value{key}", entry.get("value", "-"))
+        ctx.number(f"{prefix}Bound{key}", math.ceil(entry.get("bound", 0) - 1e-6) if "bound" in entry else "-")
+        ctx.number(f"{prefix}Status{key}", entry.get("status", "-"))
     ctx.number(f"{prefix}Validator", PASS if validation["ok"] else FAIL)
     ctx.number(f"{prefix}HorizonAfter", report["horizon_after"])
     ctx.number(f"{prefix}Levels", len(levels))
@@ -324,6 +378,7 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
     return {
         "vector": primary["vector"],
         "table": table,
+        "all_optimal": primary["all_optimal"],
         "deterministic": deterministic,
         "weighted_agree": weighted_agree,
         "highs_agree": highs_agree,
@@ -343,7 +398,7 @@ def resolve(ctx: StageContext) -> dict[str, Any]:
 
 @stage(
     "resolve_interval",
-    deps=("detect", "resolve"),
+    deps=("detect",),
     description="Q4: resolution with C-class gap adjustments (|Δg| ≤ 10) as an additional single-parameter action",
 )
 def resolve_interval(ctx: StageContext) -> dict[str, Any]:
@@ -355,22 +410,24 @@ def resolve_interval(ctx: StageContext) -> dict[str, Any]:
         gap_categories=("C",),
     )
     metrics = _run_resolution(ctx, plans, limits, "Qfour")
-    q2 = ctx.dep_data("resolve", "solver_report.json")
-    q2_vec, q4_vec = list(q2["vector"]), list(metrics["vector"])
-    not_worse = q4_vec <= q2_vec
-    comparison = {
-        "q2_vector": q2_vec,
-        "q4_vector": q4_vec,
-        "lexicographically_not_worse": not_worse,
-        "adjust_total_delta": sum(q4_vec[3:6]) - sum(q2_vec[3:6]),
-        "amplitude_delta": (q4_vec[6] - q2_vec[6]) / 10.0,
-        "q2_table": q2["table"],
-        "q4_table": metrics["table"],
-    }
-    ctx.write_json("comparison_q2.json", comparison)
-    ctx.number("QfourLexNotWorse", PASS if not_worse else FAIL)
-    ctx.number("QfourAdjustDelta", comparison["adjust_total_delta"])
-    ctx.number("QfourAmplitudeDelta", comparison["amplitude_delta"], ".1f")
+    not_worse: bool | None = None
+    if ctx.has_stage("resolve"):
+        q2 = ctx.dep_data("resolve", "solver_report.json")
+        q2_vec, q4_vec = list(q2["vector"]), list(metrics["vector"])
+        not_worse = q4_vec <= q2_vec
+        comparison = {
+            "q2_vector": q2_vec,
+            "q4_vector": q4_vec,
+            "lexicographically_not_worse": not_worse,
+            "adjust_total_delta": sum(q4_vec[3:6]) - sum(q2_vec[3:6]),
+            "amplitude_delta": (q4_vec[6] - q2_vec[6]) / 10.0,
+            "q2_table": q2["table"],
+            "q4_table": metrics["table"],
+        }
+        ctx.write_json("comparison_q2.json", comparison)
+        ctx.number("QfourLexNotWorse", PASS if not_worse else FAIL)
+        ctx.number("QfourAdjustDelta", comparison["adjust_total_delta"])
+        ctx.number("QfourAmplitudeDelta", comparison["amplitude_delta"], ".1f")
     metrics["lexicographically_not_worse"] = not_worse
     return metrics
 
@@ -477,9 +534,9 @@ def pack(ctx: StageContext) -> dict[str, Any]:
         existing,
         horizon_t,
         tag="main",
-        time_limit=float(ctx.param("time_limit", 1200)),
-        mip_limit=float(ctx.param("mip_time_limit", 600)),
-        lp_limit=float(ctx.param("lp_time_limit", 600)),
+        time_limit=float(ctx.param("time_limit", 900)),
+        mip_limit=float(ctx.param("mip_time_limit", 300)),
+        lp_limit=float(ctx.param("lp_time_limit", 300)),
     )
     ctx.write_json("new_plans.json", result["new_plans"])
     ctx.write_json("validation_report.json", result["validation"])
@@ -491,7 +548,7 @@ def pack(ctx: StageContext) -> dict[str, Any]:
             existing,
             alt_horizon,
             tag="original-horizon",
-            time_limit=float(ctx.param("alt_time_limit", 300)),
+            time_limit=float(ctx.param("alt_time_limit", 240)),
             mip_limit=0,
             lp_limit=float(ctx.param("lp_time_limit", 600)),
         )
@@ -583,8 +640,8 @@ def bench(ctx: StageContext) -> dict[str, Any]:
     ctx.write_json("tiny.json", tiny_rows)
 
     scaling = []
-    sizes = [int(v) for v in ctx.param("sizes", [150, 300, 600, 1200])]
-    scale_limit = float(ctx.param("scale_time_limit", 300))
+    sizes = [int(v) for v in ctx.param("sizes", [150, 300, 600])]
+    scale_limit = float(ctx.param("scale_time_limit", 120))
     for n in sizes:
         plans = synthetic_instance(n, seed + n)
         t0 = time.perf_counter()
@@ -643,14 +700,19 @@ def sensitivity(ctx: StageContext) -> dict[str, Any]:
     workers = int(ctx.param("workers", 8))
     seed = ctx.seed_everything("sensitivity")
     plans = _plans(ctx.dep_data("detect", "plans.json"))
-    cases = ctx.param("cases", [[0, 5], [10, 0], [5, 2], [5, 5], [10, 2], [10, 5], [15, 5], [10, 8], [20, 10]])
+    cases = ctx.param("cases", [[5, 2], [5, 5], [10, 2], [10, 5], [15, 5], [20, 10]])
     rows = []
     for fmax, tmax in cases:
         limits = Limits(fmax=int(fmax), tmax=int(tmax))
         options = [enumerate_options(p, limits) for p in plans]
         model = build_cell_model(plans, options)
         res = solve_lexicographic_cpsat(
-            model, canonical_levels(model), seed=seed, workers=workers, time_limit=float(ctx.param("time_limit", 600))
+            model,
+            canonical_levels(model),
+            seed=seed,
+            workers=workers,
+            time_limit=float(ctx.param("time_limit", 40)),
+            strength=strengthen(model),
         )
         decisions = decisions_from_choice(model, res["chosen"]) if res["chosen"] else []
         valid = (

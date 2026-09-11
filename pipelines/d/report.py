@@ -254,7 +254,7 @@ def fig_schemes(ctx: StageContext, name: str, alternatives: dict[str, Any]) -> N
         vals = np.array([alternatives[n]["canonical_vector"][3 + idx] for n in names], dtype=float)
         ax.bar(x, vals, bottom=bottom, color=CAT_COLOR[c], label=f"{c} 类调整", width=0.6)
         bottom += vals
-    for i, n in enumerate(names):
+    for i in range(len(names)):
         ax.text(x[i], bottom[i], str(int(bottom[i])), ha="center", va="bottom", fontsize=7)
     ax.set_xticks(x, [f"方案 {n}" for n in names])
     ax.set_ylabel("被调整的计划数")
@@ -731,12 +731,18 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         ("resolve_interval", "问题 4 消解方案"),
     ):
         rep = ctx.dep_data(stage_name, "validation_report.json")
-        detail = {
-            "detect": f"真值 {rep.get('truth_pairs')} 对，报告 {rep.get('reported_pairs')} 对，缺失 {len(rep.get('missing', []))}，多余 {len(rep.get('extra', []))}",
-            "resolve": f"{rep.get('n_decisions')} 个决策，存留 {rep.get('n_survivors')}，剩余冲突 {rep.get('remaining_conflicts')}",
-            "pack": f"新增 {rep.get('n_new')}，剩余冲突 {rep.get('remaining_conflicts')}",
-            "resolve_interval": f"{rep.get('n_decisions')} 个决策，存留 {rep.get('n_survivors')}，剩余冲突 {rep.get('remaining_conflicts')}",
-        }[stage_name]
+        if stage_name == "detect":
+            detail = (
+                f"真值 {rep.get('truth_pairs')} 对，报告 {rep.get('reported_pairs')} 对，"
+                f"缺失 {len(rep.get('missing', []))}，多余 {len(rep.get('extra', []))}"
+            )
+        elif stage_name == "pack":
+            detail = f"新增 {rep.get('n_new')}，剩余冲突 {rep.get('remaining_conflicts')}"
+        else:
+            detail = (
+                f"{rep.get('n_decisions')} 个决策，存留 {rep.get('n_survivors')}，"
+                f"剩余冲突 {rep.get('remaining_conflicts')}"
+            )
         val_rows.append([label, rep.get("method", ""), detail, "通过" if rep.get("ok") else "未通过"])
     _write_table(ctx, "tab_validation", ["对象", "独立校验方法", "校验内容", "结论"], val_rows, align="lllc")
 

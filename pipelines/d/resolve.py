@@ -144,6 +144,53 @@ def build_cell_model(plans: list[Plan], options: list[list[Option]]) -> CellMode
     return model
 
 
+@dataclass
+class Strengthening:
+    """Redundant but LP/propagation-strengthening constraints derived from the cell rows (MDR-0004).
+
+    ``groups``: for a variable v and a neighbouring plan j, the options of j that share a cell with v —
+    at most one of {v} ∪ group may be chosen (a clique, since j picks exactly one option).
+    ``forced``: plan pairs whose non-cancel options all conflict pairwise → at least one must be cancelled.
+    """
+
+    groups: list[tuple[int, list[int]]] = field(default_factory=list)
+    forced: list[tuple[int, int]] = field(default_factory=list)
+    interacting_pairs: int = 0
+
+
+def strengthen(model: CellModel) -> Strengthening:
+    conf: list[set[int]] = [set() for _ in range(model.n_vars)]
+    for row in model.rows:
+        for a in row:
+            conf[a].update(row)
+    out = Strengthening()
+    plan_pairs: set[tuple[int, int]] = set()
+    for v in range(model.n_vars):
+        conf[v].discard(v)
+        by_plan: dict[int, list[int]] = {}
+        for u in conf[v]:
+            by_plan.setdefault(model.var_plan[u], []).append(u)
+        for j, us in sorted(by_plan.items()):
+            out.groups.append((v, sorted(us)))
+            i = model.var_plan[v]
+            plan_pairs.add((min(i, j), max(i, j)))
+    non_cancel = [[v for v in vs if model.option_of(v).kind != "cancel"] for vs in model.plan_vars]
+    cancel_var = {
+        i: next((v for v in vs if model.option_of(v).kind == "cancel"), None) for i, vs in enumerate(model.plan_vars)
+    }
+    for i, j in sorted(plan_pairs):
+        if cancel_var[i] is None or cancel_var[j] is None:
+            continue
+        if all(set(non_cancel[j]) <= conf[v] for v in non_cancel[i]):
+            out.forced.append((i, j))
+    out.interacting_pairs = len(plan_pairs)
+    return out
+
+
+def _cancel_of(model: CellModel, i: int) -> int:
+    return next(v for v in model.plan_vars[i] if model.option_of(v).kind == "cancel")
+
+
 Level = tuple[str, dict[int, int]]
 
 
@@ -257,25 +304,54 @@ def table_from_decisions(decisions: list[dict[str, Any]]) -> dict[str, dict[str,
     return table
 
 
-def solve_lexicographic_cpsat(
-    model: CellModel,
-    levels: list[Level],
-    *,
-    seed: int,
-    workers: int = 8,
-    time_limit: float = 600.0,
-    hint: list[int] | None = None,
-) -> dict[str, Any]:
-    """Minimise the levels in order with CP-SAT, fixing each optimum before the next (every level must be OPTIMAL)."""
+def _cp_base(model: CellModel, strength: Strengthening | None) -> tuple[Any, list[Any]]:
     from ortools.sat.python import cp_model
 
-    t0 = time.monotonic()
     cp = cp_model.CpModel()
     y = [cp.NewBoolVar(f"y{v}") for v in range(model.n_vars)]
     for vars_of_plan in model.plan_vars:
         cp.AddExactlyOne(y[v] for v in vars_of_plan)
     for row in model.rows:
         cp.AddAtMostOne(y[v] for v in row)
+    if strength is not None:
+        for v, us in strength.groups:
+            cp.AddAtMostOne([y[v], *(y[u] for u in us)])
+        for i, j in strength.forced:
+            cp.AddBoolOr([y[_cancel_of(model, i)], y[_cancel_of(model, j)]])
+    return cp, y
+
+
+def _cp_params(solver: Any, seed: int, workers: int, time_limit: float) -> None:
+    solver.parameters.random_seed = int(seed)
+    solver.parameters.num_workers = int(workers)
+    solver.parameters.max_time_in_seconds = float(time_limit)
+    if workers >= 4:
+        solver.parameters.extra_subsolvers.append("core")
+
+
+def solve_lexicographic_cpsat(
+    model: CellModel,
+    levels: list[Level],
+    *,
+    seed: int,
+    workers: int = 8,
+    time_limit: float | list[float] = 600.0,
+    hint: list[int] | None = None,
+    strength: Strengthening | None = None,
+) -> dict[str, Any]:
+    """Minimise the levels in order with CP-SAT, fixing each level's value before the next.
+
+    A level that reaches its time limit continues from its best-found value (recorded with its bound), so the
+    returned vector is always feasible; ``all_optimal`` tells whether every level was proven."""
+    from ortools.sat.python import cp_model
+
+    t0 = time.monotonic()
+    if isinstance(time_limit, int | float):
+        limits = [float(time_limit)] * len(levels)
+    else:
+        limits = [float(x) for x in time_limit]
+    limits += [limits[-1]] * (len(levels) - len(limits))
+    cp, y = _cp_base(model, strength)
     if hint is not None:
         hinted = set(hint)
         for v in range(model.n_vars):
@@ -284,13 +360,11 @@ def solve_lexicographic_cpsat(
     values: list[int] = []
     chosen: list[int] | None = None
     all_optimal = True
-    for name, terms in levels:
+    for (name, terms), limit in zip(levels, limits):
         expr = cp_model.LinearExpr.WeightedSum([y[v] for v in terms], [c for c in terms.values()])
         cp.Minimize(expr)
         solver = cp_model.CpSolver()
-        solver.parameters.random_seed = int(seed)
-        solver.parameters.num_workers = int(workers)
-        solver.parameters.max_time_in_seconds = float(time_limit)
+        _cp_params(solver, seed, workers, limit)
         t1 = time.monotonic()
         status = solver.Solve(cp)
         name_status = solver.StatusName(status)
@@ -298,7 +372,7 @@ def solve_lexicographic_cpsat(
             per_level.append({"level": name, "status": name_status, "seconds": round(time.monotonic() - t1, 3)})
             all_optimal = False
             break
-        value = int(round(solver.ObjectiveValue()))
+        value = round(solver.ObjectiveValue())
         values.append(value)
         chosen = [next(v for v in vars_of_plan if solver.Value(y[v])) for vars_of_plan in model.plan_vars]
         per_level.append(
@@ -330,9 +404,16 @@ def solve_lexicographic_cpsat(
 
 
 def solve_weighted_cpsat(
-    model: CellModel, levels: list[Level], *, seed: int, workers: int = 8, time_limit: float = 600.0
+    model: CellModel,
+    levels: list[Level],
+    *,
+    seed: int,
+    workers: int = 8,
+    time_limit: float = 600.0,
+    hint: list[int] | None = None,
+    strength: Strengthening | None = None,
 ) -> dict[str, Any]:
-    """Single CP-SAT solve of the separated-weight scalarisation (must reproduce the lexicographic vector)."""
+    """Single CP-SAT solve of the separated-weight scalarisation (should reproduce the lexicographic vector)."""
     from ortools.sat.python import cp_model
 
     t0 = time.monotonic()
@@ -341,17 +422,14 @@ def solve_weighted_cpsat(
     for w, (_, lv) in zip(weights, levels):
         for v, c in lv.items():
             terms[v] = terms.get(v, 0) + w * c
-    cp = cp_model.CpModel()
-    y = [cp.NewBoolVar(f"y{v}") for v in range(model.n_vars)]
-    for vars_of_plan in model.plan_vars:
-        cp.AddExactlyOne(y[v] for v in vars_of_plan)
-    for row in model.rows:
-        cp.AddAtMostOne(y[v] for v in row)
+    cp, y = _cp_base(model, strength)
+    if hint is not None:
+        hinted = set(hint)
+        for v in range(model.n_vars):
+            cp.AddHint(y[v], v in hinted)
     cp.Minimize(cp_model.LinearExpr.WeightedSum([y[v] for v in terms], list(terms.values())))
     solver = cp_model.CpSolver()
-    solver.parameters.random_seed = int(seed)
-    solver.parameters.num_workers = int(workers)
-    solver.parameters.max_time_in_seconds = float(time_limit)
+    _cp_params(solver, seed, workers, time_limit)
     status = solver.Solve(cp)
     chosen = None
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
@@ -361,13 +439,22 @@ def solve_weighted_cpsat(
         "status": solver.StatusName(status),
         "weights": weights,
         "objective": float(solver.ObjectiveValue()) if chosen else None,
+        "bound": float(solver.BestObjectiveBound()) if chosen else None,
         "vector": evaluate(model, chosen, levels) if chosen else None,
         "chosen": chosen,
         "seconds": round(time.monotonic() - t0, 3),
     }
 
 
-def _highs_base(model: CellModel, *, integer: bool, time_limit: float, seed: int, threads: int) -> Any:
+def _highs_base(
+    model: CellModel,
+    *,
+    integer: bool,
+    time_limit: float,
+    seed: int,
+    threads: int,
+    strength: Strengthening | None = None,
+) -> Any:
     import highspy
     import numpy as np
 
@@ -397,6 +484,20 @@ def _highs_base(model: CellModel, *, integer: bool, time_limit: float, seed: int
         nnz += len(row)
         lower.append(-highspy.kHighsInf)
         upper.append(1.0)
+    if strength is not None:
+        for v, us in strength.groups:
+            starts.append(nnz)
+            index.append(v)
+            index.extend(us)
+            nnz += len(us) + 1
+            lower.append(-highspy.kHighsInf)
+            upper.append(1.0)
+        for i, j in strength.forced:
+            starts.append(nnz)
+            index.extend((_cancel_of(model, i), _cancel_of(model, j)))
+            nnz += 2
+            lower.append(1.0)
+            upper.append(highspy.kHighsInf)
     h.addRows(
         len(starts),
         np.array(lower),
@@ -410,27 +511,45 @@ def _highs_base(model: CellModel, *, integer: bool, time_limit: float, seed: int
 
 
 def solve_lexicographic_highs(
-    model: CellModel, levels: list[Level], *, seed: int, threads: int = 8, time_limit: float = 600.0
+    model: CellModel,
+    levels: list[Level],
+    *,
+    seed: int,
+    threads: int = 8,
+    time_limit: float = 600.0,
+    reference: list[int] | None = None,
+    hint: list[int] | None = None,
+    strength: Strengthening | None = None,
 ) -> dict[str, Any]:
-    """Independent cross-check: the same 0-1 model in HiGHS, solved level by level as MILPs, plus the LP
-    relaxation bound of every level (previous levels fixed to their integer optima)."""
+    """Independent cross-check in HiGHS: the same 0-1 model, level by level.
+
+    For every level the LP relaxation (previous levels fixed to the reference values, i.e. the CP-SAT vector
+    when given) yields a lower bound; the MILP is then run with a time limit. When the MILP proves optimality
+    its value must equal the reference; otherwise its dual bound and incumbent are recorded. The next level is
+    fixed to the reference value (or the MILP optimum when no reference is given)."""
     import highspy
     import numpy as np
 
     t0 = time.monotonic()
     n = model.n_vars
-    mip = _highs_base(model, integer=True, time_limit=time_limit, seed=seed, threads=threads)
-    lp = _highs_base(model, integer=False, time_limit=time_limit, seed=seed, threads=threads)
+    mip = _highs_base(model, integer=True, time_limit=time_limit, seed=seed, threads=threads, strength=strength)
+    lp = _highs_base(model, integer=False, time_limit=time_limit, seed=seed, threads=threads, strength=strength)
     per_level: list[dict[str, Any]] = []
     values: list[int] = []
     chosen: list[int] | None = None
     all_optimal = True
+    agree = True
     idx_all = np.arange(n, dtype=np.int32)
-    for name, terms in levels:
+    for k, (name, terms) in enumerate(levels):
         cost = np.zeros(n)
         for v, c in terms.items():
             cost[v] = c
         entry: dict[str, Any] = {"level": name}
+        if hint is not None:
+            start = highspy.HighsSolution()
+            start.col_value = [1.0 if v in set(hint) else 0.0 for v in range(n)]
+            start.value_valid = True
+            mip.setSolution(start)
         for tag, h in (("lp", lp), ("mip", mip)):
             h.changeColsCost(n, idx_all, cost)
             t1 = time.monotonic()
@@ -438,19 +557,31 @@ def solve_lexicographic_highs(
             status = h.getModelStatus()
             entry[f"{tag}_status"] = h.modelStatusToString(status)
             entry[f"{tag}_seconds"] = round(time.monotonic() - t1, 3)
+            info = h.getInfo()
             if status == highspy.HighsModelStatus.kOptimal:
-                entry[f"{tag}_value"] = float(h.getInfo().objective_function_value)
+                entry[f"{tag}_value"] = float(info.objective_function_value)
             elif tag == "mip":
-                entry["mip_value"] = float(h.getInfo().objective_function_value)
-                entry["mip_bound"] = float(h.getInfo().mip_dual_bound)
-        if entry.get("mip_status") != "Optimal":
-            all_optimal = False
+                entry["mip_value"] = float(info.objective_function_value)
+            if tag == "mip":
+                entry["mip_bound"] = float(info.mip_dual_bound)
+        proven = entry.get("mip_status") == "Optimal"
+        all_optimal = all_optimal and proven
+        if proven:
+            value = round(entry["mip_value"])
+            sol = np.array(mip.getSolution().col_value)
+            chosen = [int(max(vars_of_plan, key=lambda v: sol[v])) for vars_of_plan in model.plan_vars]
+            if reference is not None and k < len(reference) and value != reference[k]:
+                agree = False
+                entry["disagrees_with_reference"] = reference[k]
+        elif reference is not None and k < len(reference):
+            value = int(reference[k])
+        else:
             per_level.append(entry)
             break
-        value = int(round(entry["mip_value"]))
+        if reference is not None and k < len(reference):
+            value = int(reference[k])
+        entry["fixed_value"] = value
         values.append(value)
-        sol = np.array(mip.getSolution().col_value)
-        chosen = [int(max(vars_of_plan, key=lambda v: sol[v])) for vars_of_plan in model.plan_vars]
         per_level.append(entry)
         idx = np.array(list(terms), dtype=np.int32)
         val = np.array([float(c) for c in terms.values()])
@@ -462,6 +593,7 @@ def solve_lexicographic_highs(
         "vector": values,
         "chosen": chosen,
         "all_optimal": all_optimal,
+        "agrees_with_reference": agree,
         "seconds": round(time.monotonic() - t0, 3),
         "version": str(highspy.Highs().version()),
     }
