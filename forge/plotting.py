@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from pathlib import Path
 from typing import Any
 
 OKABE_ITO = ["#0072B2", "#D55E00", "#009E73", "#E69F00", "#CC79A7", "#56B4E9", "#F0E442", "#000000"]
+# (family name as matplotlib registers it, font file). TTC files expose only their first face,
+# which is why the Noto CJK collection is addressed by its JP face name.
 _CJK_CANDIDATES = (
-    ("Noto Sans CJK SC", "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+    ("WenQuanYi Micro Hei", "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
+    ("Noto Sans CJK JP", "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
     ("Droid Sans Fallback", "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"),
 )
+_PROBE_TEXT = "温度 T 水分 C 药材 频段 关键词 abc 0.25"
 _STATE: dict[str, Any] = {}
 
 
@@ -23,6 +28,33 @@ class _Catcher(logging.Handler):
         self.records.append(record.getMessage())
 
 
+def _probe(family: str) -> bool:
+    """True when ``family`` (with DejaVu Sans as Latin fallback) renders the probe text into PDF cleanly."""
+    from matplotlib import pyplot as plt
+
+    catcher = _Catcher()
+    loggers = [logging.getLogger(n) for n in ("matplotlib.font_manager", "matplotlib.backends.backend_pdf", "matplotlib")]
+    for lg in loggers:
+        lg.addHandler(catcher)
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fig, ax = plt.subplots(figsize=(2.5, 1))
+            ax.text(0.05, 0.5, _PROBE_TEXT, fontfamily=[family, "DejaVu Sans"])
+            ax.set_axis_off()
+            probe = Path("/tmp") / f"forge_font_probe_{family.replace(' ', '_')}.pdf"
+            fig.savefig(probe, format="pdf")
+            plt.close(fig)
+        messages = [str(w.message) for w in caught] + catcher.records
+        bad = [m for m in messages if "missing from font" in m or "not found" in m.lower()]
+        return not bad
+    except Exception:  # noqa: BLE001
+        return False
+    finally:
+        for lg in loggers:
+            lg.removeHandler(catcher)
+
+
 def cjk_font_family() -> str:
     """Pick a CJK font that renders into PDF without missing glyphs (cached per process)."""
     if "family" in _STATE:
@@ -31,7 +63,6 @@ def cjk_font_family() -> str:
 
     matplotlib.use("Agg")
     from matplotlib import font_manager
-    from matplotlib import pyplot as plt
 
     chosen = "DejaVu Sans"
     for family, path in _CJK_CANDIDATES:
@@ -41,24 +72,9 @@ def cjk_font_family() -> str:
             font_manager.fontManager.addfont(path)
         except Exception:  # noqa: BLE001
             continue
-        catcher = _Catcher()
-        for name in ("matplotlib.font_manager", "matplotlib.backends.backend_pdf", "matplotlib"):
-            logging.getLogger(name).addHandler(catcher)
-        try:
-            fig, ax = plt.subplots(figsize=(2, 1))
-            ax.text(0.1, 0.5, "温度 水分 药材 频段 关键词", fontfamily=family)
-            probe = Path("/tmp") / f"forge_font_probe_{family.replace(' ', '_')}.pdf"
-            fig.savefig(probe, format="pdf")
-            plt.close(fig)
-            bad = [m for m in catcher.records if "missing" in m.lower() or "glyph" in m.lower() or "not found" in m.lower()]
-            if not bad:
-                chosen = family
-                break
-        except Exception:  # noqa: BLE001
-            continue
-        finally:
-            for name in ("matplotlib.font_manager", "matplotlib.backends.backend_pdf", "matplotlib"):
-                logging.getLogger(name).removeHandler(catcher)
+        if _probe(family):
+            chosen = family
+            break
     _STATE["family"] = chosen
     return chosen
 

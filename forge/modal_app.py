@@ -36,7 +36,7 @@ volume = modal.Volume.from_name(PROJECT["volume"], create_if_missing=True)
 APT_PACKAGES = [
     "texlive-xetex", "texlive-lang-chinese", "texlive-latex-base", "texlive-latex-recommended",
     "texlive-latex-extra", "texlive-science", "texlive-pictures", "texlive-bibtex-extra",
-    "texlive-fonts-recommended", "fonts-noto-cjk", "fonts-noto-core", "fonts-droid-fallback",
+    "texlive-fonts-recommended", "fonts-noto-cjk", "fonts-noto-core", "fonts-droid-fallback", "fonts-wqy-microhei",
     "fontconfig", "poppler-utils", "zip", "unzip",
 ]
 PIP_PACKAGES = [
