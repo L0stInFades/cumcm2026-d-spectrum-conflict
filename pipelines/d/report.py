@@ -479,6 +479,71 @@ def _adjustment_rows(plans: list[Plan], decisions: list[dict[str, Any]], with_ga
     return rows
 
 
+def _solver_tables(ctx: StageContext, tag: str, rep: dict[str, Any]) -> None:
+    """Per-level solver evidence (CP-SAT value/bound/status, HiGHS LP and MILP bounds) and model statistics."""
+    solver_rows = []
+    highs_levels = {e["level"]: e for e in rep["highs"]["levels"]}
+    for entry in rep["primary"]["levels"]:
+        h = highs_levels.get(entry["level"], {})
+        solver_rows.append(
+            [
+                entry["level"],
+                entry.get("value", "-"),
+                f"{entry['bound']:.2f}" if "bound" in entry else "-",
+                entry.get("status", "-"),
+                f"{entry.get('seconds', 0):.1f}",
+                f"{h['lp_value']:.2f}" if "lp_value" in h else "-",
+                f"{h['mip_value']:.0f}" if "mip_value" in h and h["mip_value"] < 1e20 else "-",
+                f"{h['mip_bound']:.2f}" if "mip_bound" in h and abs(h["mip_bound"]) < 1e20 else "-",
+                h.get("mip_status", "-"),
+            ]
+        )
+    _write_table(
+        ctx,
+        f"tab_{tag}_solver",
+        [
+            "目标层级",
+            "CP-SAT 值",
+            "CP-SAT 下界",
+            "CP-SAT 状态",
+            "用时/s",
+            "HiGHS LP 下界",
+            "HiGHS MILP 值",
+            "HiGHS MILP 下界",
+            "HiGHS 状态",
+        ],
+        solver_rows,
+        align="lrrlrrrrl",
+    )
+    m = rep["model"]
+    _write_table(
+        ctx,
+        f"tab_{tag}_model",
+        ["项目", "数值"],
+        [
+            ["决策变量数（计划-动作对）", m["vars"]],
+            ["时频单元数（含动作扩展）", m["cells"]],
+            ["变量-单元隶属数", m["memberships"]],
+            ["单元格 AtMostOne 约束数（去重前 / 去重后）", f"{m['rows_raw']} / {m['rows']}"],
+            [
+                "成对蕴含团约束数 / 强制撤销割数",
+                f"{m.get('strengthening_groups', 0)} / {m.get('forced_cancel_pairs', 0)}",
+            ],
+            ["可能相互冲突的计划对数", m.get("interacting_pairs", "-")],
+            [
+                "每计划最多动作数（A/B/C）",
+                f"{m['options_per_plan']['A']}/{m['options_per_plan']['B']}/{m['options_per_plan']['C']}",
+            ],
+            ["CP-SAT 词典序总用时/s", f"{rep['primary']['seconds']:.1f}"],
+            ["各级均证明最优", "是" if rep.get("all_optimal") else "否"],
+            ["HiGHS 交叉验证总用时/s", f"{rep['highs']['seconds']:.1f}"],
+            ["HiGHS 证明最优的各级与 CP-SAT 一致", "是" if rep["highs_agree"] else "否"],
+            ["分离权重单目标解与词典序向量一致", "是" if rep["weighted_agree"] else "否"],
+        ],
+        align="lr",
+    )
+
+
 @stage("tables", deps=REPORT_DEPS, description="Paper tables (booktabs .tex + CSV)")
 def tables(ctx: StageContext) -> dict[str, Any]:
     plans = _plans(ctx.dep_data("detect", "plans.json"))
@@ -497,7 +562,8 @@ def tables(ctx: StageContext) -> dict[str, Any]:
             ["冲突的使用次对数", stats["use_pairs"]],
             [
                 "卷入冲突的计划数（A/B/C）",
-                f"{stats['plans_involved']}（{stats['plans_involved_by_cat']['A']}/{stats['plans_involved_by_cat']['B']}/{stats['plans_involved_by_cat']['C']}）",
+                f"{stats['plans_involved']}（{stats['plans_involved_by_cat']['A']}/"
+                f"{stats['plans_involved_by_cat']['B']}/{stats['plans_involved_by_cat']['C']}）",
             ],
             ["冲突图连通分量数（≥2 个节点）", stats["components"]],
             ["最大连通分量规模", stats["largest_component"]],
@@ -574,49 +640,7 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         scheme_rows,
         align="lrrrrcc",
     )
-    solver_rows = []
-    highs_levels = {e["level"]: e for e in q2["highs"]["levels"]}
-    for entry in q2["primary"]["levels"]:
-        h = highs_levels.get(entry["level"], {})
-        solver_rows.append(
-            [
-                entry["level"],
-                entry.get("value", "-"),
-                entry.get("status", "-"),
-                f"{entry.get('seconds', 0):.2f}",
-                h.get("mip_value", "-") if "mip_value" in h else "-",
-                h.get("mip_status", "-"),
-                f"{h['lp_value']:.2f}" if "lp_value" in h else "-",
-            ]
-        )
-    _write_table(
-        ctx,
-        "tab_q2_solver",
-        ["目标层级", "CP-SAT 最优值", "CP-SAT 状态", "CP-SAT 用时/s", "HiGHS MILP 值", "HiGHS 状态", "LP 松弛下界"],
-        solver_rows,
-        align="lrlrrlr",
-    )
-    _write_table(
-        ctx,
-        "tab_q2_model",
-        ["项目", "数值"],
-        [
-            ["决策变量数（计划-动作对）", q2["model"]["vars"]],
-            ["时频单元数（含动作扩展）", q2["model"]["cells"]],
-            ["变量-单元隶属数", q2["model"]["memberships"]],
-            ["AtMostOne 约束数（去重前 / 去重后）", f"{q2['model']['rows_raw']} / {q2['model']['rows']}"],
-            [
-                "每计划最多动作数（A/B/C）",
-                f"{q2['model']['options_per_plan']['A']}/{q2['model']['options_per_plan']['B']}/{q2['model']['options_per_plan']['C']}",
-            ],
-            ["CP-SAT 词典序总用时/s", f"{q2['primary']['seconds']:.1f}"],
-            ["HiGHS 交叉验证总用时/s", f"{q2['highs']['seconds']:.1f}"],
-            ["同种子重复求解结果一致", "是" if q2["repeat_deterministic"] else "否"],
-            ["分离权重单目标与词典序一致", "是" if q2["weighted_agree"] else "否"],
-            ["HiGHS 与 CP-SAT 目标向量一致", "是" if q2["highs_agree"] else "否"],
-        ],
-        align="lr",
-    )
+    _solver_tables(ctx, "q2", q2)
 
     pack = ctx.dep_data("pack", "pack_report.json")
     new_plans = _plans(ctx.dep_data("pack", "new_plans.json"))
@@ -722,6 +746,7 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         scheme_rows4,
         align="lrrrrrc",
     )
+    _solver_tables(ctx, "q4", q4)
 
     val_rows = []
     for stage_name, label in (

@@ -546,8 +546,9 @@ def solve_lexicographic_highs(
             cost[v] = c
         entry: dict[str, Any] = {"level": name}
         if hint is not None:
+            hinted = set(hint)
             start = highspy.HighsSolution()
-            start.col_value = [1.0 if v in set(hint) else 0.0 for v in range(n)]
+            start.col_value = [1.0 if v in hinted else 0.0 for v in range(n)]
             start.value_valid = True
             mip.setSolution(start)
         for tag, h in (("lp", lp), ("mip", mip)):

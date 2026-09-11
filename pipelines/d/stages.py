@@ -609,6 +609,7 @@ def bench(ctx: StageContext) -> dict[str, Any]:
     tiny_limits = Limits(fmax=2, tmax=1)
     tiny_rows = []
     agree = 0
+    deterministic = 0
     for k in range(int(ctx.param("n_tiny", 24))):
         n_plans = 4 + k % 3
         plans = tiny_instance(seed + k, n_plans=n_plans)
@@ -618,8 +619,10 @@ def bench(ctx: StageContext) -> dict[str, Any]:
         truth = exhaustive_lexicographic(plans, tiny_limits, canonical_levels, model)
         t_exh = time.perf_counter() - t0
         res = solve_lexicographic_cpsat(model, canonical_levels(model), seed=seed, workers=workers, time_limit=120)
+        again = solve_lexicographic_cpsat(model, canonical_levels(model), seed=seed, workers=workers, time_limit=120)
         same = res["vector"] == truth
         agree += int(same)
+        deterministic += int(again["chosen"] == res["chosen"] and again["vector"] == res["vector"])
         combos = 1
         for o in options:
             combos *= len(o)
@@ -677,6 +680,8 @@ def bench(ctx: StageContext) -> dict[str, Any]:
     ctx.number("BenchTinyInstances", len(tiny_rows))
     ctx.number("BenchTinyAgree", agree)
     ctx.number("BenchTinyAllAgree", PASS if agree == len(tiny_rows) else FAIL)
+    ctx.number("BenchTinyDeterministic", deterministic)
+    ctx.number("BenchTinyAllDeterministic", PASS if deterministic == len(tiny_rows) else FAIL)
     ctx.number("BenchTinyMaxCombinations", max(r["combinations"] for r in tiny_rows))
     ctx.number("BenchScaleMaxN", max(sizes))
     ctx.number("BenchScaleMinN", min(sizes))
@@ -689,6 +694,7 @@ def bench(ctx: StageContext) -> dict[str, Any]:
     ctx.number("BenchScaleDetectorsAgree", PASS if all(r["detectors_agree"] for r in scaling) else FAIL)
     return {
         "tiny_agree": agree,
+        "tiny_deterministic": deterministic,
         "tiny_total": len(tiny_rows),
         "scaling": [(r["n"], r["cpsat_status"], round(r["cpsat_seconds"], 1)) for r in scaling],
     }
