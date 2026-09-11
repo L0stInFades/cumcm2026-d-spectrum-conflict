@@ -1,22 +1,753 @@
-"""Problem D stages. Science stages (detect, resolve, pack, resolve_interval, results, figures, tables) go here.
+"""Problem D stages: validate, detect (Q1), resolve (Q2), pack (Q3), resolve_interval (Q4), bench,
+sensitivity, results; figures and tables live in ``pipelines.d.report`` (imported here so they register).
 
-Conventions (see docs/ENGINEERING_STANDARD.md):
-  * every stage is ``@stage(name, deps=(...))`` and returns a JSON-serialisable metrics dict;
-  * outputs go only to ``ctx.out(...)``; paper numbers via ``ctx.number("Key", value)``;
-  * ``results`` writes result*.xlsx with ``forge.xlsx.write_result`` from the organisers' templates;
-  * every optimisation result must be re-checked by an independent validator before it is written.
+Conventions (docs/ENGINEERING_STANDARD.md): every stage is ``@stage(name, deps=(...))`` returning
+JSON-serialisable metrics; outputs go only to ``ctx.out(...)``; paper numbers via ``ctx.number``;
+randomness only via ``ctx.seed_everything``; every optimisation result is re-checked by
+``pipelines.d.validators`` before it is written.
 """
 
 from __future__ import annotations
 
+import math
+import time
 from typing import Any
 
 from forge.context import StageContext
 from forge.runner import stage
+from forge.xlsx import write_result
 from pipelines.common.validation import run_validation
+from pipelines.d import validators
 from pipelines.d.contracts import INPUT_CONTRACTS
+from pipelines.d.detect import conflict_records, detect_bandsweep, detect_pairwise, graph_stats
+from pipelines.d.pack import (
+    C_TEMPLATE,
+    candidate_placements,
+    cell_rows,
+    greedy_pack,
+    highs_pack,
+    occupancy_grid,
+    plans_from_choice,
+    solve_pack_cpsat,
+    template_span,
+)
+from pipelines.d.plans import CATEGORIES, Plan, horizon, load_plans, plan_from_record
+from pipelines.d.resolve import (
+    Limits,
+    build_cell_model,
+    canonical_levels,
+    decisions_from_choice,
+    enumerate_options,
+    evaluate,
+    scheme_levels,
+    solve_lexicographic_cpsat,
+    solve_lexicographic_highs,
+    solve_weighted_cpsat,
+    table_from_decisions,
+)
+from pipelines.d.synth import exhaustive_lexicographic, synthetic_instance, tiny_instance
+
+PARQUET = "附件1__Sheet1.parquet"
+Q2_LIMITS = Limits(fmax=10, tmax=5)
+Q4_LIMITS = Limits(fmax=10, tmax=5, gmax=10, gap_categories=("C",))
+PASS = "通过"
+FAIL = "未通过"
+
+
+def _load_plans(ctx: StageContext) -> list[Plan]:
+    return load_plans(ctx.dep("ingest") / "data" / PARQUET)
+
+
+def _records(plans: list[Plan]) -> list[dict[str, Any]]:
+    return [p.record() for p in plans]
+
+
+def _plans(records: list[dict[str, Any]]) -> list[Plan]:
+    return [plan_from_record(r) for r in records]
 
 
 @stage("validate", deps=("ingest",), description="Validate the 150 frequency-use plans against their contract")
 def validate(ctx: StageContext) -> dict[str, Any]:
     return run_validation(ctx, INPUT_CONTRACTS)
+
+
+# ----------------------------------------------------------------------------------------------- Q1
+@stage("detect", deps=("ingest", "validate"), description="Q1: exact conflict detection with two algorithms")
+def detect(ctx: StageContext) -> dict[str, Any]:
+    plans = _load_plans(ctx)
+    t0 = time.perf_counter()
+    pairs = detect_pairwise(plans)
+    t_pairwise = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    sweep = detect_bandsweep(plans)
+    t_sweep = time.perf_counter() - t0
+    if pairs != sweep:
+        raise RuntimeError(f"detectors disagree: pairwise {len(pairs)} vs sweep {len(sweep)}")
+    records = conflict_records(plans, pairs)
+    stats = graph_stats(plans, pairs)
+    use_pairs = sum(r["use_pairs"] for r in records)
+    horizon_t = horizon(plans)
+    grid = occupancy_grid(plans, horizon_t)
+    import numpy as np
+
+    counts = np.zeros(grid.shape, dtype=int)
+    for p in plans:
+        for start, end in p.uses():
+            counts[p.f : p.f_end, start:end] += 1
+    validation = validators.validate_detection(plans, [(r["id1"], r["id2"]) for r in records])
+    if not validation["ok"]:
+        raise RuntimeError(f"independent detection check failed: {validation}")
+    multiplicity = {
+        str(k): int(sum(1 for r in records if r["use_pairs"] == k)) for k in sorted({r["use_pairs"] for r in records})
+    }
+    stats.update(
+        {
+            "use_pairs": int(use_pairs),
+            "use_pair_multiplicity": multiplicity,
+            "horizon": int(horizon_t),
+            "cells_total": int(counts.size),
+            "cells_occupied": int((counts >= 1).sum()),
+            "cells_overlap": int((counts >= 2).sum()),
+            "cells_max_multiplicity": int(counts.max()),
+            "cells_by_cat": {c: int(sum(p.n_cells for p in plans if p.cat == c)) for c in CATEGORIES},
+            "seconds_pairwise": t_pairwise,
+            "seconds_sweep": t_sweep,
+            "detectors_agree": True,
+            "pair_multiplicity_max": max((r["use_pairs"] for r in records), default=0),
+        }
+    )
+    ctx.write_json("plans.json", _records(plans))
+    ctx.write_json("conflicts.json", records)
+    ctx.write_json("stats.json", stats)
+    ctx.write_json("validation_report.json", validation)
+    ctx.number("QonePlans", len(plans))
+    ctx.number("QoneConflictPairs", stats["pairs"])
+    for key, value in stats["by_pair"].items():
+        ctx.number(f"QoneConflictPairs{key}", value)
+    ctx.number("QonePlansInConflict", stats["plans_involved"])
+    for c in CATEGORIES:
+        ctx.number(f"QonePlansInConflict{c}", stats["plans_involved_by_cat"][c])
+    ctx.number("QoneComponents", stats["components"])
+    ctx.number("QoneLargestComponent", stats["largest_component"])
+    ctx.number("QoneMaxDegree", stats["max_degree"])
+    ctx.number("QoneMeanDegree", stats["mean_degree"], ".2f")
+    ctx.number("QoneDensity", stats["density"], ".4f")
+    ctx.number("QoneUsePairs", use_pairs)
+    ctx.number("QoneHorizon", horizon_t)
+    ctx.number("QoneCellsTotal", stats["cells_total"])
+    ctx.number("QoneCellsOccupied", stats["cells_occupied"])
+    ctx.number("QoneCellsOverlap", stats["cells_overlap"])
+    ctx.number("QoneOccupancyPercent", 100.0 * stats["cells_occupied"] / stats["cells_total"], ".1f")
+    ctx.number("QonePairwiseMs", 1000 * t_pairwise, ".0f")
+    ctx.number("QoneSweepMs", 1000 * t_sweep, ".0f")
+    ctx.number("QoneValidator", PASS)
+    ctx.number("QoneTopDegreeId", stats["top_degree"][0]["pid"] if stats["top_degree"] else "-")
+    ctx.log.info("detect.done", pairs=stats["pairs"], by_pair=stats["by_pair"], seconds=t_pairwise)
+    return {"pairs": stats["pairs"], "by_pair": stats["by_pair"], "use_pairs": use_pairs, "validator_ok": True}
+
+
+# ------------------------------------------------------------------------------------------ Q2 / Q4
+def _shift_stats(decisions: list[dict[str, Any]]) -> dict[str, Any]:
+    freq = [abs(d["delta"]) for d in decisions if d["kind"] == "freq"]
+    tim = [abs(d["delta"]) for d in decisions if d["kind"] == "time"]
+    gap = [abs(d["delta"]) for d in decisions if d["kind"] == "gap"]
+    stat = lambda xs: {
+        "count": len(xs),
+        "mean": (sum(xs) / len(xs)) if xs else 0.0,
+        "max": max(xs, default=0),
+        "sum": sum(xs),
+    }  # noqa: E731
+    return {
+        "freq": stat(freq),
+        "time": stat(tim),
+        "gap": stat(gap),
+        "cancel": sum(1 for d in decisions if d["kind"] == "cancel"),
+    }
+
+
+def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix: str) -> dict[str, Any]:
+    """Shared Q2/Q4 pipeline: model, lexicographic CP-SAT, cross-checks, alternatives, validation, outputs."""
+    workers = int(ctx.param("workers", 8))
+    time_limit = float(ctx.param("time_limit", 900))
+    highs_limit = float(ctx.param("highs_time_limit", 900))
+    seed = ctx.seed_everything(prefix)
+    options = [enumerate_options(p, limits) for p in plans]
+    t0 = time.perf_counter()
+    model = build_cell_model(plans, options)
+    build_seconds = time.perf_counter() - t0
+    levels = canonical_levels(model)
+    ctx.log.info(
+        "model.built", vars=model.n_vars, rows=len(model.rows), rows_raw=model.n_rows_raw, seconds=build_seconds
+    )
+
+    primary = solve_lexicographic_cpsat(model, levels, seed=seed, workers=workers, time_limit=time_limit)
+    ctx.log.info("cpsat.primary", vector=primary["vector"], levels=primary["levels"], seconds=primary["seconds"])
+    if not primary["all_optimal"] or primary["chosen"] is None:
+        raise RuntimeError(f"CP-SAT did not prove optimality on every level: {primary['levels']}")
+    repeat = solve_lexicographic_cpsat(model, levels, seed=seed, workers=workers, time_limit=time_limit)
+    deterministic = repeat["chosen"] == primary["chosen"] and repeat["vector"] == primary["vector"]
+    weighted = solve_weighted_cpsat(model, levels, seed=seed, workers=workers, time_limit=time_limit)
+    weighted_agree = weighted["vector"] == primary["vector"]
+    ctx.log.info("cpsat.weighted", vector=weighted["vector"], status=weighted["status"], agree=weighted_agree)
+    highs = solve_lexicographic_highs(model, levels, seed=seed, threads=workers, time_limit=highs_limit)
+    highs_agree = highs["all_optimal"] and highs["vector"] == primary["vector"]
+    ctx.log.info("highs.done", vector=highs["vector"], all_optimal=highs["all_optimal"], seconds=highs["seconds"])
+
+    decisions = decisions_from_choice(model, primary["chosen"])
+    table = table_from_decisions(decisions)
+    validation = validators.validate_resolution(
+        plans,
+        decisions,
+        fmax=limits.fmax,
+        tmax=limits.tmax,
+        gmax=limits.gmax,
+        gap_categories=limits.gap_categories,
+        reported_table=table,
+        reported_vector=primary["vector"],
+    )
+    if not validation["ok"]:
+        raise RuntimeError(f"independent validation failed: {validation['errors']}")
+    survivors = [plan_from_record(d["plan"]) for d in decisions if d["plan"] is not None]
+
+    alternatives: dict[str, Any] = {}
+    for name in ("P", "T", "S", "W"):
+        if name == "P":
+            res, chosen = primary, primary["chosen"]
+        else:
+            res = solve_lexicographic_cpsat(
+                model, scheme_levels(name, model), seed=seed, workers=workers, time_limit=time_limit
+            )
+            chosen = res["chosen"]
+        alt_decisions = decisions_from_choice(model, chosen) if chosen else []
+        alt_valid = (
+            validators.validate_resolution(
+                plans,
+                alt_decisions,
+                fmax=limits.fmax,
+                tmax=limits.tmax,
+                gmax=limits.gmax,
+                gap_categories=limits.gap_categories,
+            )
+            if chosen
+            else {"ok": False}
+        )
+        alternatives[name] = {
+            "scheme_vector": res["vector"],
+            "canonical_vector": evaluate(model, chosen, levels) if chosen else None,
+            "table": table_from_decisions(alt_decisions) if chosen else None,
+            "all_optimal": res["all_optimal"],
+            "seconds": res["seconds"],
+            "validator_ok": bool(alt_valid["ok"]),
+            "shifts": _shift_stats(alt_decisions),
+        }
+        ctx.log.info(
+            "alternative", scheme=name, vector=alternatives[name]["canonical_vector"], optimal=res["all_optimal"]
+        )
+
+    shifts = _shift_stats(decisions)
+    report = {
+        "limits": limits.__dict__,
+        "model": {
+            "vars": model.n_vars,
+            "rows": len(model.rows),
+            "rows_raw": model.n_rows_raw,
+            "cells": model.n_cells,
+            "memberships": model.memberships,
+            "horizon": model.horizon,
+            "options_per_plan": {
+                c: max(len(options[i]) for i, p in enumerate(plans) if p.cat == c) for c in CATEGORIES
+            },
+            "build_seconds": build_seconds,
+        },
+        "primary": {k: v for k, v in primary.items() if k != "chosen"},
+        "repeat_deterministic": deterministic,
+        "weighted": {k: v for k, v in weighted.items() if k != "chosen"},
+        "weighted_agree": weighted_agree,
+        "highs": {k: v for k, v in highs.items() if k != "chosen"},
+        "highs_agree": highs_agree,
+        "vector": primary["vector"],
+        "table": table,
+        "shifts": shifts,
+        "amplitude_normalised": primary["vector"][-1] / 10.0,
+        "horizon_after": horizon(survivors),
+    }
+    ctx.write_json("decisions.json", decisions)
+    ctx.write_json("resolved_plans.json", _records(survivors))
+    ctx.write_json("solver_report.json", report)
+    ctx.write_json("alternatives.json", alternatives)
+    ctx.write_json("validation_report.json", validation)
+
+    for c in CATEGORIES:
+        ctx.number(f"{prefix}Keep{c}", table[c]["keep"])
+        ctx.number(f"{prefix}Adjust{c}", table[c]["adjust"])
+        ctx.number(f"{prefix}Cancel{c}", table[c]["cancel"])
+    ctx.number(f"{prefix}KeepTotal", sum(table[c]["keep"] for c in CATEGORIES))
+    ctx.number(f"{prefix}AdjustTotal", sum(table[c]["adjust"] for c in CATEGORIES))
+    ctx.number(f"{prefix}CancelTotal", sum(table[c]["cancel"] for c in CATEGORIES))
+    ctx.number(f"{prefix}FreqShifted", shifts["freq"]["count"])
+    ctx.number(f"{prefix}TimeShifted", shifts["time"]["count"])
+    ctx.number(f"{prefix}GapChanged", shifts["gap"]["count"])
+    ctx.number(f"{prefix}MeanAbsFreqShift", shifts["freq"]["mean"], ".2f")
+    ctx.number(f"{prefix}MaxAbsFreqShift", shifts["freq"]["max"])
+    ctx.number(f"{prefix}SumAbsFreqShift", shifts["freq"]["sum"])
+    ctx.number(f"{prefix}MeanAbsTimeShift", shifts["time"]["mean"], ".2f")
+    ctx.number(f"{prefix}MaxAbsTimeShift", shifts["time"]["max"])
+    ctx.number(f"{prefix}SumAbsTimeShift", shifts["time"]["sum"])
+    ctx.number(f"{prefix}MeanAbsGapChange", shifts["gap"]["mean"], ".2f")
+    ctx.number(f"{prefix}MaxAbsGapChange", shifts["gap"]["max"])
+    ctx.number(f"{prefix}Amplitude", primary["vector"][-1] / 10.0, ".1f")
+    ctx.number(f"{prefix}AmplitudeScaled", primary["vector"][-1])
+    ctx.number(f"{prefix}Vars", model.n_vars)
+    ctx.number(f"{prefix}Rows", len(model.rows))
+    ctx.number(f"{prefix}RowsRaw", model.n_rows_raw)
+    ctx.number(f"{prefix}Memberships", model.memberships)
+    ctx.number(f"{prefix}Cells", model.n_cells)
+    ctx.number(f"{prefix}CpsatSeconds", primary["seconds"], ".1f")
+    ctx.number(f"{prefix}HighsSeconds", highs["seconds"], ".1f")
+    ctx.number(f"{prefix}WeightedSeconds", weighted["seconds"], ".1f")
+    ctx.number(f"{prefix}HighsAgree", PASS if highs_agree else FAIL)
+    ctx.number(f"{prefix}WeightedAgree", PASS if weighted_agree else FAIL)
+    ctx.number(f"{prefix}Deterministic", PASS if deterministic else FAIL)
+    ctx.number(f"{prefix}Validator", PASS if validation["ok"] else FAIL)
+    ctx.number(f"{prefix}HorizonAfter", report["horizon_after"])
+    ctx.number(f"{prefix}Levels", len(levels))
+    for entry in highs["levels"]:
+        if "lp_value" in entry:
+            ctx.number(f"{prefix}LpBound{entry['level'].capitalize()}", entry["lp_value"], ".2f")
+    for name, alt in alternatives.items():
+        vec = alt["canonical_vector"]
+        if vec is not None:
+            ctx.number(f"{prefix}Scheme{name}AdjustTotal", sum(vec[3:6]))
+            ctx.number(f"{prefix}Scheme{name}CancelTotal", sum(vec[0:3]))
+            ctx.number(f"{prefix}Scheme{name}Amplitude", vec[6] / 10.0, ".1f")
+            ctx.number(f"{prefix}Scheme{name}AdjustA", vec[3])
+    return {
+        "vector": primary["vector"],
+        "table": table,
+        "deterministic": deterministic,
+        "weighted_agree": weighted_agree,
+        "highs_agree": highs_agree,
+        "validator_ok": validation["ok"],
+        "cpsat_seconds": primary["seconds"],
+        "highs_seconds": highs["seconds"],
+        "horizon_after": report["horizon_after"],
+    }
+
+
+@stage("resolve", deps=("detect",), description="Q2: lexicographic conflict resolution (CP-SAT, HiGHS cross-check)")
+def resolve(ctx: StageContext) -> dict[str, Any]:
+    plans = _plans(ctx.dep_data("detect", "plans.json"))
+    limits = Limits(fmax=int(ctx.param("fmax", Q2_LIMITS.fmax)), tmax=int(ctx.param("tmax", Q2_LIMITS.tmax)))
+    return _run_resolution(ctx, plans, limits, "Qtwo")
+
+
+@stage(
+    "resolve_interval",
+    deps=("detect", "resolve"),
+    description="Q4: resolution with C-class gap adjustments (|Δg| ≤ 10) as an additional single-parameter action",
+)
+def resolve_interval(ctx: StageContext) -> dict[str, Any]:
+    plans = _plans(ctx.dep_data("detect", "plans.json"))
+    limits = Limits(
+        fmax=int(ctx.param("fmax", Q4_LIMITS.fmax)),
+        tmax=int(ctx.param("tmax", Q4_LIMITS.tmax)),
+        gmax=int(ctx.param("gmax", Q4_LIMITS.gmax)),
+        gap_categories=("C",),
+    )
+    metrics = _run_resolution(ctx, plans, limits, "Qfour")
+    q2 = ctx.dep_data("resolve", "solver_report.json")
+    q2_vec, q4_vec = list(q2["vector"]), list(metrics["vector"])
+    not_worse = q4_vec <= q2_vec
+    comparison = {
+        "q2_vector": q2_vec,
+        "q4_vector": q4_vec,
+        "lexicographically_not_worse": not_worse,
+        "adjust_total_delta": sum(q4_vec[3:6]) - sum(q2_vec[3:6]),
+        "amplitude_delta": (q4_vec[6] - q2_vec[6]) / 10.0,
+        "q2_table": q2["table"],
+        "q4_table": metrics["table"],
+    }
+    ctx.write_json("comparison_q2.json", comparison)
+    ctx.number("QfourLexNotWorse", PASS if not_worse else FAIL)
+    ctx.number("QfourAdjustDelta", comparison["adjust_total_delta"])
+    ctx.number("QfourAmplitudeDelta", comparison["amplitude_delta"], ".1f")
+    metrics["lexicographically_not_worse"] = not_worse
+    return metrics
+
+
+# ----------------------------------------------------------------------------------------------- Q3
+def _pack_once(
+    ctx: StageContext,
+    existing: list[Plan],
+    horizon_t: int,
+    *,
+    tag: str,
+    time_limit: float,
+    mip_limit: float,
+    lp_limit: float,
+) -> dict[str, Any]:
+    import numpy as np
+
+    workers = int(ctx.param("workers", 8))
+    seed = ctx.seed(f"pack-{tag}")
+    grid = occupancy_grid(existing, horizon_t)
+    free_cells = int((~grid).sum())
+    free_by_band = (~grid).sum(axis=1)
+    cells_per_plan = C_TEMPLATE["w"] * C_TEMPLATE["d"] * C_TEMPLATE["n"]
+    t0 = time.perf_counter()
+    cands = candidate_placements(grid, C_TEMPLATE)
+    rows = cell_rows(cands, C_TEMPLATE, horizon_t)
+    build_seconds = time.perf_counter() - t0
+    greedy = greedy_pack(cands, C_TEMPLATE, grid)
+    ctx.log.info(
+        "pack.model", tag=tag, candidates=len(cands), rows=len(rows), greedy=len(greedy), seconds=build_seconds
+    )
+    cp = solve_pack_cpsat(rows, len(cands), hint=greedy, seed=seed, workers=workers, time_limit=time_limit)
+    ctx.log.info(
+        "pack.cpsat", tag=tag, status=cp["status"], value=cp["value"], bound=cp["bound"], seconds=cp["seconds"]
+    )
+    lp = (
+        highs_pack(rows, len(cands), integer=False, time_limit=lp_limit, seed=seed, threads=workers)
+        if lp_limit > 0
+        else None
+    )
+    mip = (
+        highs_pack(rows, len(cands), integer=True, time_limit=mip_limit, seed=seed, threads=workers)
+        if mip_limit > 0
+        else None
+    )
+    bounds: dict[str, float] = {
+        "free_cells": math.floor(free_cells / cells_per_plan),
+        "per_band": math.floor(
+            sum(int(b) // (C_TEMPLATE["d"] * C_TEMPLATE["n"]) for b in free_by_band) / C_TEMPLATE["w"]
+        ),
+        "cpsat": math.floor(cp["bound"] + 1e-6) if cp["bound"] is not None else math.inf,
+    }
+    if lp is not None and lp["status"] == "Optimal":
+        bounds["lp"] = math.floor(lp["value"] + 1e-6)
+    if mip is not None and mip.get("bound") is not None and math.isfinite(mip["bound"]):
+        bounds["highs_mip"] = math.floor(mip["bound"] + 1e-6)
+    upper = int(min(bounds.values()))
+    best_name, best = "cpsat", cp
+    if mip is not None and mip.get("chosen") and len(mip["chosen"]) > cp["value"]:
+        best_name, best = "highs_mip", mip
+    new_plans = plans_from_choice(cands, best["chosen"], C_TEMPLATE)
+    validation = validators.validate_packing(existing, new_plans, horizon=horizon_t, template=C_TEMPLATE)
+    if not validation["ok"]:
+        raise RuntimeError(f"independent packing validation failed: {validation['errors']}")
+    value = len(new_plans)
+    return {
+        "tag": tag,
+        "horizon": int(horizon_t),
+        "existing": len(existing),
+        "cells_total": int(grid.size),
+        "cells_occupied": int(grid.sum()),
+        "free_cells": free_cells,
+        "candidates": len(cands),
+        "rows": len(rows),
+        "build_seconds": build_seconds,
+        "greedy": len(greedy),
+        "cpsat": {k: v for k, v in cp.items() if k != "chosen"},
+        "lp": lp,
+        "highs_mip": {k: v for k, v in (mip or {}).items() if k != "chosen"} if mip else None,
+        "bounds": bounds,
+        "upper_bound": upper,
+        "value": value,
+        "gap": upper - value,
+        "optimal": upper == value,
+        "source": best_name,
+        "utilisation_before": float(grid.sum() / grid.size),
+        "utilisation_after": float((grid.sum() + value * cells_per_plan) / grid.size),
+        "new_plans": _records(new_plans),
+        "validation": validation,
+        "free_by_band": [int(b) for b in free_by_band],
+        "span": template_span(C_TEMPLATE),
+        "seed": seed,
+        "np_version": str(np.__version__),
+    }
+
+
+@stage("pack", deps=("detect", "resolve"), description="Q3: maximum number of additional C-class plans (set packing)")
+def pack(ctx: StageContext) -> dict[str, Any]:
+    existing = _plans(ctx.dep_data("resolve", "resolved_plans.json"))
+    original = _plans(ctx.dep_data("detect", "plans.json"))
+    horizon_t = horizon(existing)
+    result = _pack_once(
+        ctx,
+        existing,
+        horizon_t,
+        tag="main",
+        time_limit=float(ctx.param("time_limit", 1200)),
+        mip_limit=float(ctx.param("mip_time_limit", 600)),
+        lp_limit=float(ctx.param("lp_time_limit", 600)),
+    )
+    ctx.write_json("new_plans.json", result["new_plans"])
+    ctx.write_json("validation_report.json", result["validation"])
+    alternatives: dict[str, Any] = {}
+    alt_horizon = horizon(original)
+    if bool(ctx.param("alt_horizon", True)) and alt_horizon != horizon_t:
+        alt = _pack_once(
+            ctx,
+            existing,
+            alt_horizon,
+            tag="original-horizon",
+            time_limit=float(ctx.param("alt_time_limit", 300)),
+            mip_limit=0,
+            lp_limit=float(ctx.param("lp_time_limit", 600)),
+        )
+        alternatives["original_horizon"] = {k: v for k, v in alt.items() if k not in {"new_plans", "free_by_band"}}
+    # capacity of the empty region (what "no extra resource" could hold at most without any existing plan)
+    empty_bound = math.floor(100 * horizon_t / (C_TEMPLATE["w"] * C_TEMPLATE["d"] * C_TEMPLATE["n"]))
+    report = {k: v for k, v in result.items() if k not in {"new_plans"}}
+    report["alternatives"] = alternatives
+    report["empty_region_bound"] = empty_bound
+    ctx.write_json("pack_report.json", report)
+    ctx.number("QthreeNewPlans", result["value"])
+    ctx.number("QthreeUpperBound", result["upper_bound"])
+    ctx.number("QthreeGap", result["gap"])
+    ctx.number("QthreeOptimal", PASS if result["optimal"] else FAIL)
+    ctx.number("QthreeHorizon", horizon_t)
+    ctx.number("QthreeFreeCells", result["free_cells"])
+    ctx.number("QthreeCellsTotal", result["cells_total"])
+    ctx.number("QthreeCandidates", result["candidates"])
+    ctx.number("QthreeRows", result["rows"])
+    ctx.number("QthreeGreedy", result["greedy"])
+    ctx.number("QthreeCpsatStatus", result["cpsat"]["status"])
+    ctx.number("QthreeCpsatSeconds", result["cpsat"]["seconds"], ".1f")
+    ctx.number("QthreeCpsatValue", result["cpsat"]["value"])
+    ctx.number("QthreeCpsatBound", result["bounds"]["cpsat"] if math.isfinite(result["bounds"]["cpsat"]) else "-")
+    ctx.number("QthreeFreeCellBound", result["bounds"]["free_cells"])
+    ctx.number("QthreePerBandBound", result["bounds"]["per_band"])
+    ctx.number("QthreeEmptyRegionBound", empty_bound)
+    if "lp" in result["bounds"]:
+        ctx.number("QthreeLpBound", result["bounds"]["lp"])
+        ctx.number("QthreeLpValue", result["lp"]["value"], ".2f")
+    if result["highs_mip"]:
+        ctx.number("QthreeHighsStatus", result["highs_mip"]["status"])
+        ctx.number("QthreeHighsValue", int(result["highs_mip"].get("value", 0)))
+        if "highs_mip" in result["bounds"]:
+            ctx.number("QthreeHighsBound", result["bounds"]["highs_mip"])
+    ctx.number("QthreeUtilBefore", 100 * result["utilisation_before"], ".1f")
+    ctx.number("QthreeUtilAfter", 100 * result["utilisation_after"], ".1f")
+    ctx.number("QthreeValidator", PASS)
+    ctx.number("QthreeSpan", result["span"])
+    if "original_horizon" in alternatives:
+        ctx.number("QthreeAltHorizon", alt_horizon)
+        ctx.number("QthreeAltNewPlans", alternatives["original_horizon"]["value"])
+        ctx.number("QthreeAltUpperBound", alternatives["original_horizon"]["upper_bound"])
+    return {
+        "new_plans": result["value"],
+        "upper_bound": result["upper_bound"],
+        "gap": result["gap"],
+        "status": result["cpsat"]["status"],
+        "validator_ok": True,
+    }
+
+
+# --------------------------------------------------------------------------------------------- bench
+@stage("bench", deps=("detect",), description="Exhaustive small-instance comparison and scaling benchmark")
+def bench(ctx: StageContext) -> dict[str, Any]:
+    workers = int(ctx.param("workers", 8))
+    seed = ctx.seed_everything("bench")
+    tiny_limits = Limits(fmax=2, tmax=1)
+    tiny_rows = []
+    agree = 0
+    for k in range(int(ctx.param("n_tiny", 24))):
+        n_plans = 4 + k % 3
+        plans = tiny_instance(seed + k, n_plans=n_plans)
+        options = [enumerate_options(p, tiny_limits) for p in plans]
+        model = build_cell_model(plans, options)
+        t0 = time.perf_counter()
+        truth = exhaustive_lexicographic(plans, tiny_limits, canonical_levels, model)
+        t_exh = time.perf_counter() - t0
+        res = solve_lexicographic_cpsat(model, canonical_levels(model), seed=seed, workers=workers, time_limit=120)
+        same = res["vector"] == truth
+        agree += int(same)
+        combos = 1
+        for o in options:
+            combos *= len(o)
+        tiny_rows.append(
+            {
+                "instance": k + 1,
+                "plans": n_plans,
+                "conflicts": len(detect_pairwise(plans)),
+                "combinations": combos,
+                "exhaustive_vector": truth,
+                "cpsat_vector": res["vector"],
+                "agree": same,
+                "exhaustive_seconds": t_exh,
+                "cpsat_seconds": res["seconds"],
+            }
+        )
+    ctx.log.info("bench.tiny", agree=agree, total=len(tiny_rows))
+    ctx.write_json("tiny.json", tiny_rows)
+
+    scaling = []
+    sizes = [int(v) for v in ctx.param("sizes", [150, 300, 600, 1200])]
+    scale_limit = float(ctx.param("scale_time_limit", 300))
+    for n in sizes:
+        plans = synthetic_instance(n, seed + n)
+        t0 = time.perf_counter()
+        pairs = detect_pairwise(plans)
+        t_pair = time.perf_counter() - t0
+        t0 = time.perf_counter()
+        sweep = detect_bandsweep(plans)
+        t_sweep = time.perf_counter() - t0
+        options = [enumerate_options(p, Q2_LIMITS) for p in plans]
+        t0 = time.perf_counter()
+        model = build_cell_model(plans, options)
+        t_build = time.perf_counter() - t0
+        levels = canonical_levels(model)
+        res = solve_weighted_cpsat(model, levels, seed=seed, workers=workers, time_limit=scale_limit)
+        row = {
+            "n": n,
+            "horizon": horizon(plans),
+            "conflicts": len(pairs),
+            "detectors_agree": pairs == sweep,
+            "pairwise_seconds": t_pair,
+            "sweep_seconds": t_sweep,
+            "vars": model.n_vars,
+            "rows": len(model.rows),
+            "memberships": model.memberships,
+            "build_seconds": t_build,
+            "cpsat_status": res["status"],
+            "cpsat_seconds": res["seconds"],
+            "vector": res["vector"],
+        }
+        scaling.append(row)
+        ctx.log.info("bench.scale", **row)
+    ctx.write_json("scaling.json", scaling)
+    ctx.number("BenchTinyInstances", len(tiny_rows))
+    ctx.number("BenchTinyAgree", agree)
+    ctx.number("BenchTinyAllAgree", PASS if agree == len(tiny_rows) else FAIL)
+    ctx.number("BenchTinyMaxCombinations", max(r["combinations"] for r in tiny_rows))
+    ctx.number("BenchScaleMaxN", max(sizes))
+    ctx.number("BenchScaleMinN", min(sizes))
+    last = scaling[-1]
+    ctx.number("BenchScaleMaxPairwiseSeconds", last["pairwise_seconds"], ".2f")
+    ctx.number("BenchScaleMaxSweepSeconds", last["sweep_seconds"], ".2f")
+    ctx.number("BenchScaleMaxCpsatSeconds", last["cpsat_seconds"], ".1f")
+    ctx.number("BenchScaleMaxStatus", last["cpsat_status"])
+    ctx.number("BenchScaleAllOptimal", PASS if all(r["cpsat_status"] == "OPTIMAL" for r in scaling) else FAIL)
+    ctx.number("BenchScaleDetectorsAgree", PASS if all(r["detectors_agree"] for r in scaling) else FAIL)
+    return {
+        "tiny_agree": agree,
+        "tiny_total": len(tiny_rows),
+        "scaling": [(r["n"], r["cpsat_status"], round(r["cpsat_seconds"], 1)) for r in scaling],
+    }
+
+
+# --------------------------------------------------------------------------------------- sensitivity
+@stage("sensitivity", deps=("detect",), description="Q2 sensitivity to the maximum shift amplitudes")
+def sensitivity(ctx: StageContext) -> dict[str, Any]:
+    workers = int(ctx.param("workers", 8))
+    seed = ctx.seed_everything("sensitivity")
+    plans = _plans(ctx.dep_data("detect", "plans.json"))
+    cases = ctx.param("cases", [[0, 5], [10, 0], [5, 2], [5, 5], [10, 2], [10, 5], [15, 5], [10, 8], [20, 10]])
+    rows = []
+    for fmax, tmax in cases:
+        limits = Limits(fmax=int(fmax), tmax=int(tmax))
+        options = [enumerate_options(p, limits) for p in plans]
+        model = build_cell_model(plans, options)
+        res = solve_lexicographic_cpsat(
+            model, canonical_levels(model), seed=seed, workers=workers, time_limit=float(ctx.param("time_limit", 600))
+        )
+        decisions = decisions_from_choice(model, res["chosen"]) if res["chosen"] else []
+        valid = (
+            validators.validate_resolution(plans, decisions, fmax=limits.fmax, tmax=limits.tmax)
+            if decisions
+            else {"ok": False}
+        )
+        vec = res["vector"]
+        rows.append(
+            {
+                "fmax": int(fmax),
+                "tmax": int(tmax),
+                "vars": model.n_vars,
+                "vector": vec,
+                "cancel_total": sum(vec[0:3]) if len(vec) == 7 else None,
+                "adjust_total": sum(vec[3:6]) if len(vec) == 7 else None,
+                "amplitude": vec[6] / 10.0 if len(vec) == 7 else None,
+                "table": table_from_decisions(decisions) if decisions else None,
+                "all_optimal": res["all_optimal"],
+                "seconds": res["seconds"],
+                "validator_ok": bool(valid["ok"]),
+                "shifts": _shift_stats(decisions),
+            }
+        )
+        ctx.log.info("sensitivity.case", fmax=fmax, tmax=tmax, vector=vec, seconds=res["seconds"])
+    ctx.write_json("cases.json", rows)
+    base = next((r for r in rows if r["fmax"] == 10 and r["tmax"] == 5), rows[0])
+    ctx.number("SensCases", len(rows))
+    ctx.number("SensBaseAdjustTotal", base["adjust_total"])
+    ctx.number("SensMinAdjustTotal", min(r["adjust_total"] for r in rows if r["adjust_total"] is not None))
+    ctx.number("SensMaxAdjustTotal", max(r["adjust_total"] for r in rows if r["adjust_total"] is not None))
+    ctx.number("SensMaxCancelTotal", max(r["cancel_total"] for r in rows if r["cancel_total"] is not None))
+    ctx.number("SensAllOptimal", PASS if all(r["all_optimal"] for r in rows) else FAIL)
+    ctx.number("SensAllValid", PASS if all(r["validator_ok"] for r in rows) else FAIL)
+    return {"cases": [(r["fmax"], r["tmax"], r["vector"]) for r in rows]}
+
+
+# ------------------------------------------------------------------------------------------- results
+@stage(
+    "results",
+    deps=("detect", "resolve", "pack", "resolve_interval"),
+    description="Fill result1–4.xlsx from the organisers' templates after every validator passed",
+)
+def results(ctx: StageContext) -> dict[str, Any]:
+    for name in ("detect", "resolve", "pack", "resolve_interval"):
+        report = ctx.dep_data(name, "validation_report.json")
+        if not report.get("ok"):
+            raise RuntimeError(f"validator of stage {name} did not pass; refusing to write result workbooks")
+    templates = ctx.templates
+    written: dict[str, Any] = {}
+
+    conflicts = ctx.dep_data("detect", "conflicts.json")
+    rows1 = [
+        [k, r["id1"], r["id2"]] for k, r in enumerate(sorted(conflicts, key=lambda r: (r["id1"], r["id2"])), start=1)
+    ]
+    written["result1.xlsx"] = write_result(
+        templates / "result1.xlsx", ctx.out("result1.xlsx"), {"Sheet1": (["序号", "冲突装备1", "冲突设备2"], rows1)}
+    )
+
+    def adjustment_rows(decisions: list[dict[str, Any]], with_gap: bool) -> list[list[Any]]:
+        rows: list[list[Any]] = []
+        for dec in sorted(decisions, key=lambda d: d["pid"]):
+            if dec["kind"] == "keep":
+                continue
+            plan = plan_from_record(dec["plan"]) if dec["plan"] else None
+            freq = plan.freq_text() if plan and dec["kind"] == "freq" else None
+            tim = plan.time_text() if plan and dec["kind"] == "time" else None
+            gap = plan.g if plan and dec["kind"] == "gap" else None
+            cancel = "是" if dec["kind"] == "cancel" else None
+            rows.append([dec["pid"], freq, tim, gap, cancel] if with_gap else [dec["pid"], freq, tim, cancel])
+        return rows
+
+    rows2 = adjustment_rows(ctx.dep_data("resolve", "decisions.json"), with_gap=False)
+    written["result2.xlsx"] = write_result(
+        templates / "result2.xlsx",
+        ctx.out("result2.xlsx"),
+        {"Sheet1": (["用频装备编号", "调整后频段区间", "调整后时间区间", "是否撤销用频计划"], rows2)},
+    )
+    new_plans = _plans(ctx.dep_data("pack", "new_plans.json"))
+    rows3 = [[k, p.freq_text(), p.time_text()] for k, p in enumerate(new_plans, start=1)]
+    written["result3.xlsx"] = write_result(
+        templates / "result3.xlsx",
+        ctx.out("result3.xlsx"),
+        {"Sheet1": (["新增用频装备序号", "调整后频段区间", "调整后时间区间"], rows3)},
+    )
+    rows4 = adjustment_rows(ctx.dep_data("resolve_interval", "decisions.json"), with_gap=True)
+    written["result4.xlsx"] = write_result(
+        templates / "result4.xlsx",
+        ctx.out("result4.xlsx"),
+        {"Sheet1": (["用频装备编号", "调整后频段范围", "调整后时间区间", "调整后间隔时长", "是否撤销用频计划"], rows4)},
+    )
+    ctx.write_json("results_report.json", written)
+    ctx.number("ResultOneRows", len(rows1))
+    ctx.number("ResultTwoRows", len(rows2))
+    ctx.number("ResultThreeRows", len(rows3))
+    ctx.number("ResultFourRows", len(rows4))
+    return {name: info["sheets"]["Sheet1"]["rows"] for name, info in written.items()}
+
+
+from pipelines.d import report as _report  # noqa: E402,F401  (registers figures/tables stages)
