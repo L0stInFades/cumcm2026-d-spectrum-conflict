@@ -125,6 +125,6 @@ def tex_escape(text: str) -> str:
 
 def tex_path(path: str) -> str:
     """Typeset a file path so that it can break across lines (hyperref/xurl); falls back to \\texttt."""
-    if any(ch in path for ch in "{}%#\\"):
-        return f"\\texttt{{{tex_escape(path)}}}"
+    if any(ch in path for ch in "{}%#\\") or not path.isascii():
+        return f"\\texttt{{{tex_escape(path)}}}"  # CJK names need the CJK mono font, not the url font
     return f"\\nolinkurl{{{path}}}"

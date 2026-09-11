@@ -45,16 +45,14 @@ INPUT_CONTRACTS: dict[str, FrameContract] = {
 }
 
 RESULT_CONTRACTS: list[WorkbookContract] = [
-    WorkbookContract("result1.xlsx", "result1.xlsx", (
-        SheetContract("Sheet1", min_rows=1, header_len=3, text_columns=(1, 2)),
-    )),
-    WorkbookContract("result2.xlsx", "result2.xlsx", (
-        SheetContract("Sheet1", min_rows=1, header_len=4, text_columns=(0,)),
-    )),
-    WorkbookContract("result3.xlsx", "result3.xlsx", (
-        SheetContract("Sheet1", min_rows=0, header_len=3),
-    )),
-    WorkbookContract("result4.xlsx", "result4.xlsx", (
-        SheetContract("Sheet1", min_rows=1, header_len=5, text_columns=(0,)),
-    )),
+    WorkbookContract(
+        "result1.xlsx", "result1.xlsx", (SheetContract("Sheet1", min_rows=1, header_len=3, text_columns=(1, 2)),)
+    ),
+    WorkbookContract(
+        "result2.xlsx", "result2.xlsx", (SheetContract("Sheet1", min_rows=1, header_len=4, text_columns=(0,)),)
+    ),
+    WorkbookContract("result3.xlsx", "result3.xlsx", (SheetContract("Sheet1", min_rows=0, header_len=3),)),
+    WorkbookContract(
+        "result4.xlsx", "result4.xlsx", (SheetContract("Sheet1", min_rows=1, header_len=5, text_columns=(0,)),)
+    ),
 ]
