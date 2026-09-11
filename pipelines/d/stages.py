@@ -188,8 +188,24 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
         seconds=build_seconds,
     )
 
+    hint: list[int] | None = None
+    hint_from = ctx.param("hint_from")
+    if hint_from:
+        hint_path = ctx.run_dir / str(hint_from)
+        hint_decisions = json.loads(hint_path.read_text(encoding="utf-8")).get("decisions", [])
+        by_pid = {d["pid"]: (d["kind"], int(d["delta"])) for d in hint_decisions}
+        hint = []
+        for i, plan in enumerate(plans):
+            kind, delta = by_pid.get(plan.pid, ("keep", 0))
+            hint.append(
+                next(
+                    (v for v in model.plan_vars[i] if (model.option_of(v).kind, model.option_of(v).delta) == (kind, delta)),
+                    model.plan_vars[i][0],
+                )
+            )
+        ctx.log.info("hint.loaded", path=str(hint_path), plans=len(hint))
     primary = solve_lexicographic_cpsat(
-        model, levels, seed=seed, workers=workers, time_limit=level_limits, strength=strength
+        model, levels, seed=seed, workers=workers, time_limit=level_limits, strength=strength, hint=hint
     )
     ctx.log.info("cpsat.primary", vector=primary["vector"], levels=primary["levels"], seconds=primary["seconds"])
     if primary["chosen"] is None or len(primary["vector"]) != len(levels):

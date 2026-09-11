@@ -22,10 +22,11 @@ def test_problem_statement_example_a001() -> None:
 def test_half_open_intervals_do_not_touch() -> None:
     a = Plan("A001", "A", 0, 10, 0, 5, 60, 3)
     b = Plan("B001", "B", 10, 15, 0, 3, 40, 4)  # bands [10,25) touch [0,10) without overlap
-    c = Plan("C001", "C", 5, 3, 5, 2, 8, 12)  # time [5,7) touches [0,5)
-    d = Plan("C002", "C", 5, 3, 4, 2, 8, 12)  # time [4,6) overlaps [0,5)
+    c = Plan("C001", "C", 5, 3, 5, 2, 8, 1)  # single use [5,7) touches [0,5)
+    d = Plan("C002", "C", 5, 3, 4, 2, 8, 1)  # single use [4,6) overlaps [0,5)
+    e = Plan("C003", "C", 5, 3, 5, 2, 8, 12)  # 7th use [65,67) overlaps A's second use [65,70)
     assert not plans_conflict(a, b) and not plans_conflict(a, c) and plans_conflict(a, d)
-    assert overlapping_uses(a, d) == [(0, 0)]
+    assert overlapping_uses(a, d) == [(0, 0)] and overlapping_uses(a, e) == [(1, 6)]
 
 
 def test_detectors_agree_with_cell_sets_on_synthetic_instances() -> None:
