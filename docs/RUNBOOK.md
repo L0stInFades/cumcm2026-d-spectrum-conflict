@@ -17,6 +17,7 @@ python3 tools/cli.py status                         # 云端读取本 run 全部
 python3 tools/cli.py logs q1                        # 云端读取阶段事件日志
 python3 tools/cli.py exec --code 'import pandas as pd; print(pd.read_parquet(RUN_DIR/"ingest/data/附件1__Sheet1.parquet").head())'
 python3 tools/cli.py exec --file scratch/explore.py # 云端执行探索脚本（RUN_DIR/VOL/REPO 已注入）
+python3 tools/cli.py fmt                            # 云端 ruff --fix + format，改动文件自动拷回本地
 python3 tools/cli.py run lint,test                  # 门禁
 python3 tools/cli.py run paper,qa,package,release   # 论文 → 质检 → 打包 → 发布
 python3 tools/cli.py download --stage paper         # 下载到 artifacts/ 并核对散列

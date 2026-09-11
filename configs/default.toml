@@ -24,7 +24,7 @@ required_stages = ["lint", "test"]
 results_stage = "results"
 require_results = true
 identity_denylist = []                       # 硬门禁（正则）：出现即失败
-identity_watchlist = ["大学", "学院", "赛区", "队号", "指导教师", "@"]   # 软提示：写入报告供复核
+identity_watchlist = ["大学", "学院", "赛区", "队号", "指导教师", "[\\w.-]+@[\\w.-]+\\.\\w+"]   # 软提示：写入报告供复核
 
 [package]
 stages = ["ingest", "validate", "results", "figures", "tables", "lint", "test", "qa"]
