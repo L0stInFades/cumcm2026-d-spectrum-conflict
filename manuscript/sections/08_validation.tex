@@ -37,7 +37,7 @@ $\valQoneConflictPairs$ 对冲突；在 $n=\valBenchScaleMinN,\dots,\valBenchSca
 
 \paragraph{两个求解器。}本文用 HiGHS\cite{huangfu2018} 对问题 2、4 的模型\emph{独立建模}（0--1 线性规划形式），
 逐级给出线性松弛下界与限时 MILP 结果。在 HiGHS 自身证明最优的每一级上，其值与 CP-SAT 完全一致
-（\valQtwoHighsAgree{}、\valQfourHighsAgree{}）。问题 3 更进一步：CP-SAT 对偶界、HiGHS 线性松弛界与 HiGHS MILP 界
+（\valQtwoHighsAgree{}、\valQfourHighsAgree{}）。问题 3 更进一步：CP-SAT 对偶界、HiGHS 线性松弛界与 HiGHS MILP 界%
 \emph{三者同时等于} $\valQthreeNewPlans$（表~\ref{tab:q3summary}）。
 
 \paragraph{两种标量化。}命题~\ref{prop:weights} 给出词典序的等价单目标形式。本文以此做第二次独立搜索
@@ -46,7 +46,7 @@ $\valQoneConflictPairs$ 对冲突；在 $n=\valBenchScaleMinN,\dots,\valBenchSca
 本文如实报告这一点：它不是矛盾（词典序解严格更优，且由命题~\ref{prop:cut} 永不劣于任何已知可行解），
 而是说明在该规模上逐级求解强于单次加权求解。
 
-\paragraph{诚实的界定。}需要指出：两种标量化都以同一个现任解为起点，因此问题 2 的“一致”主要说明
+\paragraph{诚实的界定。}需要指出：两种标量化都以同一个现任解为起点，因此问题 2 的“一致”主要说明%
 \emph{两条独立的搜索路径都没有找到更好的解}，而不等于独立地\emph{证明}了最优性。
 本文的最优性证据只有一个来源——表~\ref{tab:q2solver}、\ref{tab:q4solver}、\ref{tab:q3summary} 中的“证明下界”一列。
 

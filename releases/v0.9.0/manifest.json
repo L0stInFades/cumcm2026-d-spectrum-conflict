@@ -3,24 +3,24 @@
   "run_id": "20260912-102234-ea48b61",
   "stage": "release",
   "status": "completed",
-  "started_at": "2026-09-12T08:51:02+00:00",
-  "finished_at": "2026-09-12T08:51:02+00:00",
+  "started_at": "2026-09-12T08:56:29+00:00",
+  "finished_at": "2026-09-12T08:56:29+00:00",
   "duration_s": 0.0,
   "code_ref": {
-    "git_sha": "2e3752aec2eae040e5d201c037a081aaec601395",
+    "git_sha": "073408459d426ad3354178c73b523a0708d57937",
     "branch": "main",
-    "dirty": false,
-    "code_digest": "a3c73165814b392d7a35fa580e817193546d6995e46ef1292bbc4d049d1a149b",
+    "dirty": true,
+    "code_digest": "4ddbdc1dc2cd5e8aad6abd3edc110135c3a1aeaf39e214948d0f780841410797",
     "files": 106
   },
   "params": {
     "code_ref": {
-      "git_sha": "2e3752aec2eae040e5d201c037a081aaec601395",
+      "git_sha": "073408459d426ad3354178c73b523a0708d57937",
       "branch": "main",
-      "dirty": false
+      "dirty": true
     },
     "size": "medium",
-    "submitted_at": "2026-09-12T16:50:29",
+    "submitted_at": "2026-09-12T16:56:07",
     "stages": [
       "package",
       "release"
@@ -28,7 +28,7 @@
   },
   "config_digest": "3818a25b77cb1b8e7e7612ede38c145d1b0233e31cee2011fe2518fd19235254",
   "deps": {
-    "package": "2a060d975f8e11e30af99caf816c28d93be9712a6cdd3b30cd32adc27c658717"
+    "package": "84bb34bc15d01c67d0fe5d2cabd5836bec80c6f9d0499db42a255fd86f0d6d5b"
   },
   "inputs": {
     "D题.pdf": {
@@ -62,12 +62,12 @@
       "bytes": 109404
     },
     "RELEASE_NOTES.md": {
-      "sha256": "8c6268cba7580d96f41defc22267ade269780c53874f2855273e519ee44e2a03",
+      "sha256": "f07c4ba3308fc1dacad5ddb3a0fe1f80a48144e2fdfb1a8d6aed712efca588de",
       "bytes": 836
     },
     "release_manifest.json": {
-      "sha256": "eade89ed95c14f8819d580d0814d454e789e1511444fcefc689e7e9b3d6e200a",
-      "bytes": 1199
+      "sha256": "db69550b7f4a575141dc486d4afad1d2ce6e4d9d3b04ea5ee8ff7ce21677ce64",
+      "bytes": 1198
     },
     "result1.xlsx": {
       "sha256": "068dae0d7027457595b75d8085cc261520acce4e762e37c1c17cb59c47d208a8",
@@ -86,24 +86,24 @@
       "bytes": 7518
     },
     "支撑材料.zip": {
-      "sha256": "e48e1cb31314f27aff100a070f3890c2532ce06b7eca19ef992d59402f6477e9",
-      "bytes": 1608181
+      "sha256": "de7adc3b1f1b2275eaae8b656dfb9f2d3ff14f53dbbc3bfbc0e9b3b02f1a0a5f",
+      "bytes": 1609897
     },
     "论文.pdf": {
-      "sha256": "b4c5112ccb48efc6137a534fa626826d1b3f477e33c5a4f18fa88c8d184f24c2",
-      "bytes": 1918111
+      "sha256": "a83249819421d6861fb115dd294922ef38a56b559fd25c43ac5e2e63b4a8e3e4",
+      "bytes": 1918006
     }
   },
-  "outputs_digest": "4c85432a40b53e1e3206eef656c1fab0b9e47b5af45680765aae358cf4ba748d",
+  "outputs_digest": "187d9453e119e35665f83b69f6b069857f185583ca633d6ec94994769d9828b9",
   "metrics": {
     "files": 7,
-    "paper_bytes": 1918111
+    "paper_bytes": 1918006
   },
   "runtime": {
     "python": "3.11.12",
     "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
     "cpu_count": 24,
-    "modal_task_id": "ta-01M2ACZEEFTV9YPGM2NBS99HAR",
+    "modal_task_id": "ta-01M2AD9Q8G2YK20NX1MTWZZGDR",
     "modal_is_remote": true,
     "packages": {
       "numpy": "2.2.6",
