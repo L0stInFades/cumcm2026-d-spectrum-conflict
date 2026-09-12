@@ -294,6 +294,16 @@ $x^\ast\leftarrow x_0$ \textbf{若} $x_0$ 可行 \textbf{否则} $\varnothing$\q
 “\valColdRelation{}”（撤销总数相差 $\valColdCancelDelta$、调整总数相差 $\valColdAdjustDelta$）。
 该阶段不参与任何交付工作簿的生成，只回答一个方法层面的问题：仓库中存放的现任解，是搜索的\emph{输出}还是\emph{输入}。
 
+答案必须说清楚：\textbf{在本文的时限下，它是输入}。单次冷启动没有达到 $\valQtwoVector$，
+因此“任何人重跑一次就能得到同一答案”这句话只有在\emph{加载仓库中的现任解}时才成立——
+而该文件本身是更早若干次运行累积的最好可行解，其来源 run 与 commit 记录在文件内。
+这并不削弱本文的任何结论，理由有三：
+（i）$\valQtwoVector$ 是一个\emph{已被独立校验器复核过的真实可行解}（零剩余冲突、全部动作合法），
+可行性与它从哪里来无关；
+（ii）撤销三级的状态为 \textsf{OPTIMAL}，由命题~\ref{prop:cut}，该结论与起点无关；
+（iii）未闭合的各级本文本就只报“值 / 证明下界 / 状态”，冷启动的对照恰好量化了起点对这些层级的影响有多大。
+把这一点如实写出，比声称“完全可从零复现”更接近事实。
+
 求解器为 OR-Tools CP-SAT\cite{ortools2025}（$24$ 线程、固定随机种子、显式加入核心引导子求解器），
 各级时限 $[20,20,600,300,300,300,240]$ 秒，总用时 $\valQtwoCpsatSeconds$ s；
 另用 HiGHS\cite{huangfu2018} 对\emph{同一模型独立建模}，逐级给出线性松弛下界与限时 MILP 结果（总用时 $\valQtwoHighsSeconds$ s）；
