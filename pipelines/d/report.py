@@ -565,7 +565,7 @@ def tables(ctx: StageContext) -> dict[str, Any]:
                 f"{stats['plans_involved']}（{stats['plans_involved_by_cat']['A']}/"
                 f"{stats['plans_involved_by_cat']['B']}/{stats['plans_involved_by_cat']['C']}）",
             ],
-            ["冲突图连通分量数（≥2 个节点）", stats["components"]],
+            ["冲突图连通分量数（不少于 2 个节点）", stats["components"]],
             ["最大连通分量规模", stats["largest_component"]],
             ["最大度 / 平均度", f"{stats['max_degree']} / {stats['mean_degree']:.2f}"],
             ["冲突图密度", f"{stats['density']:.4f}"],
@@ -658,7 +658,7 @@ def tables(ctx: StageContext) -> dict[str, Any]:
             "HiGHS MILP 解 / 上界",
             f"{int(pack['highs_mip']['value'])} / {bounds.get('highs_mip', '-')}" if pack.get("highs_mip") else "-",
         ],
-        ["自由单元容量界 ⌊自由单元/72⌋", bounds["free_cells"]],
+        ["自由单元容量界 floor(自由单元数/72)", bounds["free_cells"]],
         ["逐频段容量界", bounds["per_band"]],
         ["空区域容量界（无既有计划）", pack["empty_region_bound"]],
         ["最终结果 / 最紧上界 / gap", f"{pack['value']} / {pack['upper_bound']} / {pack['gap']}"],

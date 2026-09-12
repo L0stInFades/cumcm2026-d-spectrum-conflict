@@ -13,9 +13,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from pipelines.d.highs_util import highs_threads
 from pipelines.d.plans import BANDS, CATEGORIES, Plan
 
-# amplitude normalisation (MDR-0003): |δ|/10 + |τ|/5 + |Δg|/10, stored ×10 so that it is an integer
+# amplitude normalisation (MDR-0003): |df|/10 + |dt|/5 + |dg|/10, stored x10 so that it is an integer
 AMPLITUDE_SCALE = 10
 FREQ_REF, TIME_REF, GAP_REF = 10, 5, 10
 
@@ -149,7 +150,7 @@ class Strengthening:
     """Redundant but LP/propagation-strengthening constraints derived from the cell rows (MDR-0004).
 
     ``groups``: for a variable v and a neighbouring plan j, the options of j that share a cell with v —
-    at most one of {v} ∪ group may be chosen (a clique, since j picks exactly one option).
+    at most one of {v} together with the group may be chosen (a clique, since j picks exactly one option).
     ``forced``: plan pairs whose non-cancel options all conflict pairwise → at least one must be cancelled.
     """
 
@@ -302,6 +303,32 @@ def table_from_decisions(decisions: list[dict[str, Any]]) -> dict[str, dict[str,
         key = {"keep": "keep", "cancel": "cancel"}.get(dec["kind"], "adjust")
         table[dec["cat"]][key] += 1
     return table
+
+
+def hint_from_decisions(model: CellModel, decisions: list[dict[str, Any]]) -> list[int]:
+    """Map recorded decisions (``pid``, ``kind``, ``delta``) onto this model's variables, one per plan.
+
+    Plans without a recorded decision, or whose recorded action does not exist under the current limits,
+    fall back to ``keep``; the result is a warm-start *hint* (CP-SAT repairs infeasible hints), never a
+    constraint, so incumbents from a run with different limits can still be reused."""
+    by_pid = {str(d["pid"]): (str(d["kind"]), int(d.get("delta", 0))) for d in decisions}
+    hint: list[int] = []
+    for i, plan in enumerate(model.plans):
+        kind, delta = by_pid.get(plan.pid, ("keep", 0))
+        keep = model.plan_vars[i][0]
+        hint.append(
+            next(
+                (v for v in model.plan_vars[i] if (model.option_of(v).kind, model.option_of(v).delta) == (kind, delta)),
+                keep,
+            )
+        )
+    return hint
+
+
+def hint_is_feasible(model: CellModel, chosen: list[int]) -> bool:
+    """True when the chosen variables (one per plan) violate no cell row, i.e. no conflict remains."""
+    chosen_set = set(chosen)
+    return all(sum(1 for v in row if v in chosen_set) <= 1 for row in model.rows)
 
 
 def _cp_base(model: CellModel, strength: Strengthening | None) -> tuple[Any, list[Any]]:
@@ -463,7 +490,7 @@ def _highs_base(
     h.setOptionValue("log_to_console", False)
     h.setOptionValue("time_limit", float(time_limit))
     h.setOptionValue("random_seed", int(seed))
-    h.setOptionValue("threads", int(threads))
+    h.setOptionValue("threads", highs_threads(threads))
     h.setOptionValue("mip_rel_gap", 0.0)
     h.setOptionValue("mip_abs_gap", 0.0)
     n = model.n_vars
@@ -520,6 +547,7 @@ def solve_lexicographic_highs(
     reference: list[int] | None = None,
     hint: list[int] | None = None,
     strength: Strengthening | None = None,
+    lp_time_limit: float | None = None,
 ) -> dict[str, Any]:
     """Independent cross-check in HiGHS: the same 0-1 model, level by level.
 
@@ -532,19 +560,26 @@ def solve_lexicographic_highs(
 
     t0 = time.monotonic()
     n = model.n_vars
-    mip = _highs_base(model, integer=True, time_limit=time_limit, seed=seed, threads=threads, strength=strength)
-    lp = _highs_base(model, integer=False, time_limit=time_limit, seed=seed, threads=threads, strength=strength)
     per_level: list[dict[str, Any]] = []
     values: list[int] = []
     chosen: list[int] | None = None
     all_optimal = True
     agree = True
     idx_all = np.arange(n, dtype=np.int32)
+    fixed: list[tuple[np.ndarray, np.ndarray, float]] = []  # rows fixing the previous levels
+    lp_limit = float(lp_time_limit) if lp_time_limit is not None else float(time_limit)
     for k, (name, terms) in enumerate(levels):
         cost = np.zeros(n)
         for v, c in terms.items():
             cost[v] = c
         entry: dict[str, Any] = {"level": name}
+        # A fresh solver per level and per relaxation: HiGHS' run clock accumulates over successive run()
+        # calls on one object, so re-using it would let the first level's time limit starve the others.
+        lp = _highs_base(model, integer=False, time_limit=lp_limit, seed=seed, threads=threads, strength=strength)
+        mip = _highs_base(model, integer=True, time_limit=time_limit, seed=seed, threads=threads, strength=strength)
+        for h in (lp, mip):
+            for f_idx, f_val, f_value in fixed:
+                h.addRow(f_value, f_value, len(f_idx), f_idx, f_val)
         if hint is not None:
             hinted = set(hint)
             start = highspy.HighsSolution()
@@ -586,8 +621,7 @@ def solve_lexicographic_highs(
         per_level.append(entry)
         idx = np.array(list(terms), dtype=np.int32)
         val = np.array([float(c) for c in terms.values()])
-        for h in (mip, lp):
-            h.addRow(float(value), float(value), len(idx), idx, val)
+        fixed.append((idx, val, float(value)))
     return {
         "solver": "highs",
         "levels": per_level,

@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from pipelines.d.highs_util import highs_threads
 from pipelines.d.plans import BANDS, Plan
 
 C_TEMPLATE = {"w": 3, "d": 2, "g": 8, "n": 12}
@@ -135,7 +136,7 @@ def highs_pack(
     h.setOptionValue("output_flag", False)
     h.setOptionValue("time_limit", float(time_limit))
     h.setOptionValue("random_seed", int(seed))
-    h.setOptionValue("threads", int(threads))
+    h.setOptionValue("threads", highs_threads(threads))
     h.setOptionValue("mip_rel_gap", 0.0)
     h.setOptionValue("mip_abs_gap", 0.0)
     n = n_candidates

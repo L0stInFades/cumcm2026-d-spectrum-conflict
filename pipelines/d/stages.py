@@ -9,8 +9,10 @@ randomness only via ``ctx.seed_everything``; every optimisation result is re-che
 
 from __future__ import annotations
 
+import json
 import math
 import time
+from pathlib import Path
 from typing import Any
 
 from forge.context import StageContext
@@ -39,6 +41,8 @@ from pipelines.d.resolve import (
     decisions_from_choice,
     enumerate_options,
     evaluate,
+    hint_from_decisions,
+    hint_is_feasible,
     scheme_levels,
     solve_lexicographic_cpsat,
     solve_lexicographic_highs,
@@ -53,6 +57,13 @@ Q2_LIMITS = Limits(fmax=10, tmax=5)
 Q4_LIMITS = Limits(fmax=10, tmax=5, gmax=10, gap_categories=("C",))
 PASS = "通过"
 FAIL = "未通过"
+# incumbents of an earlier verified run, used only as warm starts (configs/hints/*.json carry their provenance)
+Q2_HINT = "configs/hints/q2_decisions.json"
+Q4_HINT = "configs/hints/q4_decisions.json"
+
+
+def _vector_text(vec: list[int] | None) -> str:
+    return "(" + ", ".join(str(v) for v in vec) + ")" if vec else "-"
 
 
 def _load_plans(ctx: StageContext) -> list[Plan]:
@@ -164,7 +175,37 @@ def _shift_stats(decisions: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix: str) -> dict[str, Any]:
+def _read_decisions(path: Path) -> list[dict[str, Any]]:
+    """Decisions from a stage output (a list) or an in-repo incumbent file ({"provenance", "decisions"})."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return list(data.get("decisions", [])) if isinstance(data, dict) else list(data)
+
+
+def _load_hint(ctx: StageContext, model: Any, source: str | None) -> tuple[list[int] | None, dict[str, Any]]:
+    """Warm start (MDR-0004 addendum): ``source`` is a path relative to the run directory or to the repository.
+
+    Returns the hint (one variable per plan) and a small provenance record; a missing file means no hint."""
+    if not source:
+        return None, {"source": None}
+    for path in (ctx.run_dir / source, ctx.repo / source):
+        if path.exists():
+            decisions = _read_decisions(path)
+            hint = hint_from_decisions(model, decisions)
+            info = {
+                "source": source,
+                "path": str(path),
+                "feasible": hint_is_feasible(model, hint),
+                "vector": evaluate(model, hint, canonical_levels(model)),
+            }
+            ctx.log.info("hint.loaded", **info)
+            return hint, info
+    ctx.log.warn("hint.missing", source=source)
+    return None, {"source": source, "path": None}
+
+
+def _run_resolution(
+    ctx: StageContext, plans: list[Plan], limits: Limits, prefix: str, *, default_hint: str | None = None
+) -> dict[str, Any]:
     """Shared Q2/Q4 pipeline: model, lexicographic CP-SAT, cross-checks, alternatives, validation, outputs."""
     workers = int(ctx.param("workers", 8))
     level_limits = ctx.param("level_time_limits", None) or float(ctx.param("time_limit", 360))
@@ -188,22 +229,7 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
         seconds=build_seconds,
     )
 
-    hint: list[int] | None = None
-    hint_from = ctx.param("hint_from")
-    if hint_from:
-        hint_path = ctx.run_dir / str(hint_from)
-        hint_decisions = json.loads(hint_path.read_text(encoding="utf-8")).get("decisions", [])
-        by_pid = {d["pid"]: (d["kind"], int(d["delta"])) for d in hint_decisions}
-        hint = []
-        for i, plan in enumerate(plans):
-            kind, delta = by_pid.get(plan.pid, ("keep", 0))
-            hint.append(
-                next(
-                    (v for v in model.plan_vars[i] if (model.option_of(v).kind, model.option_of(v).delta) == (kind, delta)),
-                    model.plan_vars[i][0],
-                )
-            )
-        ctx.log.info("hint.loaded", path=str(hint_path), plans=len(hint))
+    hint, hint_info = _load_hint(ctx, model, ctx.param("hint_from", default_hint))
     primary = solve_lexicographic_cpsat(
         model, levels, seed=seed, workers=workers, time_limit=level_limits, strength=strength, hint=hint
     )
@@ -238,6 +264,7 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
         reference=primary["vector"],
         hint=primary["chosen"],
         strength=strength,
+        lp_time_limit=float(ctx.param("lp_time_limit", highs_limit)),
     )
     highs_agree = highs["agrees_with_reference"]
     ctx.log.info("highs.done", levels=highs["levels"], all_optimal=highs["all_optimal"], seconds=highs["seconds"])
@@ -319,6 +346,7 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
             "interacting_pairs": strength.interacting_pairs if strength else None,
         },
         "primary": {k: v for k, v in primary.items() if k != "chosen"},
+        "hint": hint_info,
         "all_optimal": primary["all_optimal"],
         "repeat_deterministic": deterministic,
         "weighted": {k: v for k, v in weighted.items() if k != "chosen"},
@@ -380,6 +408,10 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
         ctx.number(f"{prefix}Status{key}", entry.get("status", "-"))
     ctx.number(f"{prefix}Validator", PASS if validation["ok"] else FAIL)
     ctx.number(f"{prefix}HorizonAfter", report["horizon_after"])
+    ctx.number(f"{prefix}HintUsed", "是" if hint is not None else "否")
+    ctx.number(f"{prefix}HintFeasible", PASS if hint_info.get("feasible") else FAIL)
+    ctx.number(f"{prefix}HintVector", _vector_text(hint_info.get("vector")))
+    ctx.number(f"{prefix}Vector", _vector_text(primary["vector"]))
     ctx.number(f"{prefix}Levels", len(levels))
     for entry in highs["levels"]:
         if "lp_value" in entry:
@@ -409,13 +441,13 @@ def _run_resolution(ctx: StageContext, plans: list[Plan], limits: Limits, prefix
 def resolve(ctx: StageContext) -> dict[str, Any]:
     plans = _plans(ctx.dep_data("detect", "plans.json"))
     limits = Limits(fmax=int(ctx.param("fmax", Q2_LIMITS.fmax)), tmax=int(ctx.param("tmax", Q2_LIMITS.tmax)))
-    return _run_resolution(ctx, plans, limits, "Qtwo")
+    return _run_resolution(ctx, plans, limits, "Qtwo", default_hint=Q2_HINT)
 
 
 @stage(
     "resolve_interval",
     deps=("detect",),
-    description="Q4: resolution with C-class gap adjustments (|Δg| ≤ 10) as an additional single-parameter action",
+    description="Q4: resolution with C-class gap adjustments (|dg| <= 10) as an additional single-parameter action",
 )
 def resolve_interval(ctx: StageContext) -> dict[str, Any]:
     plans = _plans(ctx.dep_data("detect", "plans.json"))
@@ -425,27 +457,35 @@ def resolve_interval(ctx: StageContext) -> dict[str, Any]:
         gmax=int(ctx.param("gmax", Q4_LIMITS.gmax)),
         gap_categories=("C",),
     )
-    metrics = _run_resolution(ctx, plans, limits, "Qfour")
-    not_worse: bool | None = None
-    if ctx.has_stage("resolve"):
-        q2 = ctx.dep_data("resolve", "solver_report.json")
-        q2_vec, q4_vec = list(q2["vector"]), list(metrics["vector"])
-        not_worse = q4_vec <= q2_vec
-        comparison = {
-            "q2_vector": q2_vec,
-            "q4_vector": q4_vec,
-            "lexicographically_not_worse": not_worse,
-            "adjust_total_delta": sum(q4_vec[3:6]) - sum(q2_vec[3:6]),
-            "amplitude_delta": (q4_vec[6] - q2_vec[6]) / 10.0,
-            "q2_table": q2["table"],
-            "q4_table": metrics["table"],
-        }
-        ctx.write_json("comparison_q2.json", comparison)
-        ctx.number("QfourLexNotWorse", PASS if not_worse else FAIL)
-        ctx.number("QfourAdjustDelta", comparison["adjust_total_delta"])
-        ctx.number("QfourAmplitudeDelta", comparison["amplitude_delta"], ".1f")
-    metrics["lexicographically_not_worse"] = not_worse
-    return metrics
+    return _run_resolution(ctx, plans, limits, "Qfour", default_hint=Q4_HINT)
+
+
+@stage("compare", deps=("resolve", "resolve_interval"), description="Q4 vs Q2: lexicographic comparison of the two resolutions")
+def compare(ctx: StageContext) -> dict[str, Any]:
+    q2 = ctx.dep_data("resolve", "solver_report.json")
+    q4 = ctx.dep_data("resolve_interval", "solver_report.json")
+    q2_vec, q4_vec = list(q2["vector"]), list(q4["vector"])
+    not_worse = q4_vec <= q2_vec  # Q4's action set is a superset of Q2's (MDR-0006)
+    comparison = {
+        "q2_vector": q2_vec,
+        "q4_vector": q4_vec,
+        "lexicographically_not_worse": not_worse,
+        "cancel_total_delta": sum(q4_vec[0:3]) - sum(q2_vec[0:3]),
+        "adjust_total_delta": sum(q4_vec[3:6]) - sum(q2_vec[3:6]),
+        "amplitude_delta": (q4_vec[6] - q2_vec[6]) / 10.0,
+        "q2_table": q2["table"],
+        "q4_table": q4["table"],
+        "q2_horizon_after": q2["horizon_after"],
+        "q4_horizon_after": q4["horizon_after"],
+        "q4_gap_changed": q4["shifts"]["gap"]["count"],
+    }
+    ctx.write_json("comparison.json", comparison)
+    ctx.number("QfourLexNotWorse", PASS if not_worse else FAIL)
+    ctx.number("QfourCancelDelta", comparison["cancel_total_delta"])
+    ctx.number("QfourAdjustDelta", comparison["adjust_total_delta"])
+    ctx.number("QfourAmplitudeDelta", comparison["amplitude_delta"], ".1f")
+    ctx.number("QfourHorizonDelta", q4["horizon_after"] - q2["horizon_after"])
+    return {"lexicographically_not_worse": not_worse, "q2": q2_vec, "q4": q4_vec}
 
 
 # ----------------------------------------------------------------------------------------------- Q3
@@ -717,32 +757,52 @@ def bench(ctx: StageContext) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------------------- sensitivity
-@stage("sensitivity", deps=("detect",), description="Q2 sensitivity to the maximum shift amplitudes")
+@stage(
+    "sensitivity",
+    deps=("detect", "resolve"),
+    description="Q2 sensitivity to the maximum shift amplitudes (base case taken from `resolve`, others warm-started)",
+)
 def sensitivity(ctx: StageContext) -> dict[str, Any]:
     workers = int(ctx.param("workers", 8))
     seed = ctx.seed_everything("sensitivity")
     plans = _plans(ctx.dep_data("detect", "plans.json"))
+    base_report = ctx.dep_data("resolve", "solver_report.json")
+    base_decisions = ctx.dep_data("resolve", "decisions.json")
+    base_limits = (int(base_report["limits"]["fmax"]), int(base_report["limits"]["tmax"]))
     cases = ctx.param("cases", [[5, 2], [5, 5], [10, 2], [10, 5], [15, 5], [20, 10]])
+    level_limits = ctx.param("level_time_limits", None) or float(ctx.param("time_limit", 60))
     rows = []
     for fmax, tmax in cases:
         limits = Limits(fmax=int(fmax), tmax=int(tmax))
         options = [enumerate_options(p, limits) for p in plans]
         model = build_cell_model(plans, options)
-        res = solve_lexicographic_cpsat(
-            model,
-            canonical_levels(model),
-            seed=seed,
-            workers=workers,
-            time_limit=float(ctx.param("time_limit", 40)),
-            strength=strengthen(model),
-        )
-        decisions = decisions_from_choice(model, res["chosen"]) if res["chosen"] else []
+        if (limits.fmax, limits.tmax) == base_limits:
+            # identical model: reuse the primary Q2 solution instead of re-solving with a shorter limit
+            decisions = base_decisions
+            vec = list(base_report["vector"])
+            all_optimal, seconds, source = (
+                bool(base_report["all_optimal"]),
+                float(base_report["primary"]["seconds"]),
+                "resolve",
+            )
+        else:
+            hint = hint_from_decisions(model, base_decisions)
+            res = solve_lexicographic_cpsat(
+                model,
+                canonical_levels(model),
+                seed=seed,
+                workers=workers,
+                time_limit=level_limits,
+                hint=hint,
+                strength=strengthen(model),
+            )
+            decisions = decisions_from_choice(model, res["chosen"]) if res["chosen"] else []
+            vec, all_optimal, seconds, source = res["vector"], res["all_optimal"], res["seconds"], "cp-sat"
         valid = (
             validators.validate_resolution(plans, decisions, fmax=limits.fmax, tmax=limits.tmax)
             if decisions
             else {"ok": False}
         )
-        vec = res["vector"]
         rows.append(
             {
                 "fmax": int(fmax),
@@ -753,23 +813,37 @@ def sensitivity(ctx: StageContext) -> dict[str, Any]:
                 "adjust_total": sum(vec[3:6]) if len(vec) == 7 else None,
                 "amplitude": vec[6] / 10.0 if len(vec) == 7 else None,
                 "table": table_from_decisions(decisions) if decisions else None,
-                "all_optimal": res["all_optimal"],
-                "seconds": res["seconds"],
+                "all_optimal": all_optimal,
+                "seconds": seconds,
+                "source": source,
                 "validator_ok": bool(valid["ok"]),
                 "shifts": _shift_stats(decisions),
             }
         )
-        ctx.log.info("sensitivity.case", fmax=fmax, tmax=tmax, vector=vec, seconds=res["seconds"])
+        ctx.log.info("sensitivity.case", fmax=fmax, tmax=tmax, vector=vec, seconds=seconds, source=source)
     ctx.write_json("cases.json", rows)
-    base = next((r for r in rows if r["fmax"] == 10 and r["tmax"] == 5), rows[0])
+    base = next((r for r in rows if (r["fmax"], r["tmax"]) == base_limits), rows[0])
+    # lexicographic monotonicity: a larger action set can never give a worse vector than the base solution
+    monotone = all(
+        list(r["vector"]) <= list(base["vector"])
+        for r in rows
+        if len(r["vector"]) == 7 and r["fmax"] >= base_limits[0] and r["tmax"] >= base_limits[1]
+    ) and all(
+        list(r["vector"]) >= list(base["vector"])
+        for r in rows
+        if len(r["vector"]) == 7 and r["fmax"] <= base_limits[0] and r["tmax"] <= base_limits[1]
+    )
     ctx.number("SensCases", len(rows))
     ctx.number("SensBaseAdjustTotal", base["adjust_total"])
+    ctx.number("SensBaseCancelTotal", base["cancel_total"])
     ctx.number("SensMinAdjustTotal", min(r["adjust_total"] for r in rows if r["adjust_total"] is not None))
     ctx.number("SensMaxAdjustTotal", max(r["adjust_total"] for r in rows if r["adjust_total"] is not None))
     ctx.number("SensMaxCancelTotal", max(r["cancel_total"] for r in rows if r["cancel_total"] is not None))
+    ctx.number("SensMinCancelTotal", min(r["cancel_total"] for r in rows if r["cancel_total"] is not None))
     ctx.number("SensAllOptimal", PASS if all(r["all_optimal"] for r in rows) else FAIL)
     ctx.number("SensAllValid", PASS if all(r["validator_ok"] for r in rows) else FAIL)
-    return {"cases": [(r["fmax"], r["tmax"], r["vector"]) for r in rows]}
+    ctx.number("SensMonotone", PASS if monotone else FAIL)
+    return {"cases": [(r["fmax"], r["tmax"], r["vector"]) for r in rows], "monotone": monotone}
 
 
 # ------------------------------------------------------------------------------------------- results

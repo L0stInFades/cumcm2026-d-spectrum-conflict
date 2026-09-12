@@ -1,0 +1,776 @@
+{
+ "provenance": {
+  "run_id": "20260912-035404-9fddcfc",
+  "stage": "resolve",
+  "git_sha": "d64805844012c7da1349ce4bb631736c218711b5",
+  "vector": [
+   0,
+   0,
+   12,
+   16,
+   37,
+   71,
+   750
+  ],
+  "limits": {
+   "fmax": 10,
+   "tmax": 5,
+   "gmax": 0,
+   "gap_categories": [],
+   "allow_cancel": true
+  },
+  "note": "Incumbent solution used only as a CP-SAT/HiGHS warm start (hint); never a constraint."
+ },
+ "decisions": [
+  {
+   "pid": "A001",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "A002",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "A003",
+   "kind": "freq",
+   "delta": 10
+  },
+  {
+   "pid": "A004",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "A005",
+   "kind": "time",
+   "delta": 4
+  },
+  {
+   "pid": "A006",
+   "kind": "time",
+   "delta": 4
+  },
+  {
+   "pid": "A007",
+   "kind": "freq",
+   "delta": -8
+  },
+  {
+   "pid": "A008",
+   "kind": "freq",
+   "delta": -10
+  },
+  {
+   "pid": "A009",
+   "kind": "freq",
+   "delta": -3
+  },
+  {
+   "pid": "A010",
+   "kind": "time",
+   "delta": 2
+  },
+  {
+   "pid": "A011",
+   "kind": "time",
+   "delta": -1
+  },
+  {
+   "pid": "A012",
+   "kind": "freq",
+   "delta": -9
+  },
+  {
+   "pid": "A013",
+   "kind": "time",
+   "delta": -4
+  },
+  {
+   "pid": "A014",
+   "kind": "freq",
+   "delta": 2
+  },
+  {
+   "pid": "A015",
+   "kind": "time",
+   "delta": 2
+  },
+  {
+   "pid": "A016",
+   "kind": "freq",
+   "delta": 5
+  },
+  {
+   "pid": "A017",
+   "kind": "freq",
+   "delta": 2
+  },
+  {
+   "pid": "A018",
+   "kind": "freq",
+   "delta": -10
+  },
+  {
+   "pid": "A019",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "A020",
+   "kind": "freq",
+   "delta": -6
+  },
+  {
+   "pid": "B001",
+   "kind": "time",
+   "delta": 5
+  },
+  {
+   "pid": "B002",
+   "kind": "freq",
+   "delta": -8
+  },
+  {
+   "pid": "B003",
+   "kind": "freq",
+   "delta": 5
+  },
+  {
+   "pid": "B004",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "B005",
+   "kind": "freq",
+   "delta": -5
+  },
+  {
+   "pid": "B006",
+   "kind": "freq",
+   "delta": -6
+  },
+  {
+   "pid": "B007",
+   "kind": "freq",
+   "delta": -5
+  },
+  {
+   "pid": "B008",
+   "kind": "freq",
+   "delta": -9
+  },
+  {
+   "pid": "B009",
+   "kind": "time",
+   "delta": 4
+  },
+  {
+   "pid": "B010",
+   "kind": "time",
+   "delta": -4
+  },
+  {
+   "pid": "B011",
+   "kind": "freq",
+   "delta": 8
+  },
+  {
+   "pid": "B012",
+   "kind": "time",
+   "delta": 2
+  },
+  {
+   "pid": "B013",
+   "kind": "time",
+   "delta": 5
+  },
+  {
+   "pid": "B014",
+   "kind": "time",
+   "delta": 5
+  },
+  {
+   "pid": "B015",
+   "kind": "freq",
+   "delta": 10
+  },
+  {
+   "pid": "B016",
+   "kind": "freq",
+   "delta": -7
+  },
+  {
+   "pid": "B017",
+   "kind": "freq",
+   "delta": -3
+  },
+  {
+   "pid": "B018",
+   "kind": "freq",
+   "delta": 9
+  },
+  {
+   "pid": "B019",
+   "kind": "time",
+   "delta": 2
+  },
+  {
+   "pid": "B020",
+   "kind": "time",
+   "delta": -4
+  },
+  {
+   "pid": "B021",
+   "kind": "freq",
+   "delta": -2
+  },
+  {
+   "pid": "B022",
+   "kind": "freq",
+   "delta": 10
+  },
+  {
+   "pid": "B023",
+   "kind": "time",
+   "delta": -2
+  },
+  {
+   "pid": "B024",
+   "kind": "time",
+   "delta": 3
+  },
+  {
+   "pid": "B025",
+   "kind": "freq",
+   "delta": 10
+  },
+  {
+   "pid": "B026",
+   "kind": "freq",
+   "delta": -3
+  },
+  {
+   "pid": "B027",
+   "kind": "freq",
+   "delta": -10
+  },
+  {
+   "pid": "B028",
+   "kind": "freq",
+   "delta": 7
+  },
+  {
+   "pid": "B029",
+   "kind": "time",
+   "delta": 5
+  },
+  {
+   "pid": "B030",
+   "kind": "freq",
+   "delta": 10
+  },
+  {
+   "pid": "B031",
+   "kind": "freq",
+   "delta": -6
+  },
+  {
+   "pid": "B032",
+   "kind": "freq",
+   "delta": 9
+  },
+  {
+   "pid": "B033",
+   "kind": "time",
+   "delta": -5
+  },
+  {
+   "pid": "B034",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "B035",
+   "kind": "freq",
+   "delta": 5
+  },
+  {
+   "pid": "B036",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "B037",
+   "kind": "freq",
+   "delta": -6
+  },
+  {
+   "pid": "B038",
+   "kind": "freq",
+   "delta": -10
+  },
+  {
+   "pid": "B039",
+   "kind": "time",
+   "delta": 2
+  },
+  {
+   "pid": "B040",
+   "kind": "freq",
+   "delta": -5
+  },
+  {
+   "pid": "C001",
+   "kind": "freq",
+   "delta": 5
+  },
+  {
+   "pid": "C002",
+   "kind": "freq",
+   "delta": -6
+  },
+  {
+   "pid": "C003",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "C004",
+   "kind": "freq",
+   "delta": -8
+  },
+  {
+   "pid": "C005",
+   "kind": "freq",
+   "delta": -3
+  },
+  {
+   "pid": "C006",
+   "kind": "freq",
+   "delta": 3
+  },
+  {
+   "pid": "C007",
+   "kind": "freq",
+   "delta": 2
+  },
+  {
+   "pid": "C008",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "C009",
+   "kind": "freq",
+   "delta": 5
+  },
+  {
+   "pid": "C010",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C011",
+   "kind": "time",
+   "delta": 2
+  },
+  {
+   "pid": "C012",
+   "kind": "freq",
+   "delta": -8
+  },
+  {
+   "pid": "C013",
+   "kind": "time",
+   "delta": 5
+  },
+  {
+   "pid": "C014",
+   "kind": "freq",
+   "delta": 7
+  },
+  {
+   "pid": "C015",
+   "kind": "freq",
+   "delta": -1
+  },
+  {
+   "pid": "C016",
+   "kind": "freq",
+   "delta": 8
+  },
+  {
+   "pid": "C017",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C018",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C019",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C020",
+   "kind": "time",
+   "delta": 1
+  },
+  {
+   "pid": "C021",
+   "kind": "freq",
+   "delta": 2
+  },
+  {
+   "pid": "C022",
+   "kind": "freq",
+   "delta": 7
+  },
+  {
+   "pid": "C023",
+   "kind": "freq",
+   "delta": -1
+  },
+  {
+   "pid": "C024",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C025",
+   "kind": "freq",
+   "delta": -5
+  },
+  {
+   "pid": "C026",
+   "kind": "time",
+   "delta": -2
+  },
+  {
+   "pid": "C027",
+   "kind": "freq",
+   "delta": -6
+  },
+  {
+   "pid": "C028",
+   "kind": "freq",
+   "delta": -5
+  },
+  {
+   "pid": "C029",
+   "kind": "freq",
+   "delta": 4
+  },
+  {
+   "pid": "C030",
+   "kind": "freq",
+   "delta": 9
+  },
+  {
+   "pid": "C031",
+   "kind": "time",
+   "delta": 3
+  },
+  {
+   "pid": "C032",
+   "kind": "freq",
+   "delta": 10
+  },
+  {
+   "pid": "C033",
+   "kind": "freq",
+   "delta": -2
+  },
+  {
+   "pid": "C034",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C035",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C036",
+   "kind": "time",
+   "delta": 3
+  },
+  {
+   "pid": "C037",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C038",
+   "kind": "time",
+   "delta": -2
+  },
+  {
+   "pid": "C039",
+   "kind": "time",
+   "delta": 1
+  },
+  {
+   "pid": "C040",
+   "kind": "freq",
+   "delta": -4
+  },
+  {
+   "pid": "C041",
+   "kind": "freq",
+   "delta": 7
+  },
+  {
+   "pid": "C042",
+   "kind": "freq",
+   "delta": 10
+  },
+  {
+   "pid": "C043",
+   "kind": "time",
+   "delta": -3
+  },
+  {
+   "pid": "C044",
+   "kind": "freq",
+   "delta": 4
+  },
+  {
+   "pid": "C045",
+   "kind": "freq",
+   "delta": -4
+  },
+  {
+   "pid": "C046",
+   "kind": "freq",
+   "delta": 3
+  },
+  {
+   "pid": "C047",
+   "kind": "freq",
+   "delta": 9
+  },
+  {
+   "pid": "C048",
+   "kind": "time",
+   "delta": -1
+  },
+  {
+   "pid": "C049",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "C050",
+   "kind": "freq",
+   "delta": -4
+  },
+  {
+   "pid": "C051",
+   "kind": "time",
+   "delta": -3
+  },
+  {
+   "pid": "C052",
+   "kind": "freq",
+   "delta": 8
+  },
+  {
+   "pid": "C053",
+   "kind": "freq",
+   "delta": 4
+  },
+  {
+   "pid": "C054",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C055",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C056",
+   "kind": "time",
+   "delta": -1
+  },
+  {
+   "pid": "C057",
+   "kind": "freq",
+   "delta": -10
+  },
+  {
+   "pid": "C058",
+   "kind": "freq",
+   "delta": -2
+  },
+  {
+   "pid": "C059",
+   "kind": "time",
+   "delta": -1
+  },
+  {
+   "pid": "C060",
+   "kind": "time",
+   "delta": -4
+  },
+  {
+   "pid": "C061",
+   "kind": "freq",
+   "delta": 5
+  },
+  {
+   "pid": "C062",
+   "kind": "freq",
+   "delta": 6
+  },
+  {
+   "pid": "C063",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "C064",
+   "kind": "freq",
+   "delta": 6
+  },
+  {
+   "pid": "C065",
+   "kind": "freq",
+   "delta": -5
+  },
+  {
+   "pid": "C066",
+   "kind": "time",
+   "delta": -3
+  },
+  {
+   "pid": "C067",
+   "kind": "cancel",
+   "delta": 0
+  },
+  {
+   "pid": "C068",
+   "kind": "freq",
+   "delta": -10
+  },
+  {
+   "pid": "C069",
+   "kind": "time",
+   "delta": 2
+  },
+  {
+   "pid": "C070",
+   "kind": "freq",
+   "delta": 9
+  },
+  {
+   "pid": "C071",
+   "kind": "time",
+   "delta": 2
+  },
+  {
+   "pid": "C072",
+   "kind": "freq",
+   "delta": 10
+  },
+  {
+   "pid": "C073",
+   "kind": "freq",
+   "delta": -5
+  },
+  {
+   "pid": "C074",
+   "kind": "freq",
+   "delta": 6
+  },
+  {
+   "pid": "C075",
+   "kind": "freq",
+   "delta": -8
+  },
+  {
+   "pid": "C076",
+   "kind": "freq",
+   "delta": 2
+  },
+  {
+   "pid": "C077",
+   "kind": "freq",
+   "delta": -9
+  },
+  {
+   "pid": "C078",
+   "kind": "freq",
+   "delta": -9
+  },
+  {
+   "pid": "C079",
+   "kind": "freq",
+   "delta": -3
+  },
+  {
+   "pid": "C080",
+   "kind": "time",
+   "delta": 2
+  },
+  {
+   "pid": "C081",
+   "kind": "time",
+   "delta": -1
+  },
+  {
+   "pid": "C082",
+   "kind": "freq",
+   "delta": 9
+  },
+  {
+   "pid": "C083",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "C084",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "C085",
+   "kind": "freq",
+   "delta": -5
+  },
+  {
+   "pid": "C086",
+   "kind": "freq",
+   "delta": 6
+  },
+  {
+   "pid": "C087",
+   "kind": "freq",
+   "delta": 8
+  },
+  {
+   "pid": "C088",
+   "kind": "time",
+   "delta": 3
+  },
+  {
+   "pid": "C089",
+   "kind": "keep",
+   "delta": 0
+  },
+  {
+   "pid": "C090",
+   "kind": "cancel",
+   "delta": 0
+  }
+ ]
+}
