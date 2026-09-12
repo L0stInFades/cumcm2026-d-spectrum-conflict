@@ -94,3 +94,20 @@ python3 tools/cli.py status                          # 17 个阶段应全部 com
 | resolve_interval | 2546 | | sensitivity | 1003 |
 | compare / results | 0 / 1 | | figures / tables | 14 / 1 |
 | lint / test | 23 / 18 | | paper / qa | 48 / 1 |
+
+## 本地运行（不需要 Modal 账号）
+
+论文所报告的全部数值由上述云端流程产生；`tools/run_local.py` 提供同一批阶段函数的本地入口，
+供没有云端账号的读者复现结构与流程：
+
+```bash
+pip install pandas numpy openpyxl pyarrow networkx matplotlib ortools highspy
+python3 tools/run_local.py --quick                      # 缩减预算，全链路 --quick 约数分钟；论文所用预算见本节上文
+python3 tools/run_local.py --stages ingest,validate,detect --out /tmp/x   # 约 5 s
+python3 tools/run_local.py                              # 默认预算
+```
+
+它调用的是同一个 `forge.runner.execute`、同一批 `@stage` 函数，只把云端卷换成本地目录
+（默认 `./local_runs/<run_id>/`），因此每个阶段仍写出 `manifest.json` 与 `events.jsonl`。
+排版阶段（`paper`/`qa`/`package`/`release`）需要 TeX Live 与中文字体，不在默认序列中。
+`--quick` 会降低求解预算或网格精度，结构与流程一致，末位数字与论文不同。

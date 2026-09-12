@@ -96,7 +96,7 @@ AI_USAGE.md                   AI 工具使用记录（入库，编译进《AI工
 
 1. `python3 tools/cli.py run lint,test,paper,qa,package,release` 全绿。
 2. `python3 tools/cli.py release --version vX.Y.Z` 下载并校验；`git add releases/vX.Y.Z && git commit -m "release: vX.Y.Z (run <id>)" && git tag vX.Y.Z`。
-3. GitHub 公开发布采用 Unlicense；竞赛期间（2026-09-10 18:00 至 2026-09-13 20:00）仓库保持私有，赛后转公开。
+3. GitHub 公开发布采用 Unlicense。本仓库为非参赛的公开研究记录，自 2026-09-12 起公开；题目与附件的著作权归组委会所有，Unlicense 只覆盖本仓库自有内容。
 
 ## 10. 安全与合规
 
