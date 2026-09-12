@@ -22,18 +22,22 @@
 \end{enumerate}
 
 \subsection{模型的局限}
+\label{sec:limits}
 
 \begin{enumerate}[leftmargin=1.8em,itemsep=0.25em]
   \item \textbf{调整层的最优性未闭合}。问题 2 的调整三级与幅度级、问题 4 的撤销 C 级均未证明最优
         （\valQtwoAllOptimal{}、\valQfourAllOptimal{}）。其间隙较宽，主要原因是线性松弛在装填型约束上很弱
         （撤销级的 LP 下界为 $0$）。改进方向是加入更强的有效不等式（如基于冲突图团的覆盖不等式）或列生成。
   \item \textbf{问题 3 的答案依赖于具体的问题 2 方案}。定理~\ref{thm:q3} 的 $\valQthreeNewPlans$ 是
-        “在本文这一个无冲突方案之上”的最大值。由引理~\ref{lem:tiling}，可装填数量主要取决于既有布局与相位划分的
-        \emph{对齐程度}，而非自由单元的\emph{总数}——因此不同的问题 2 最优解会给出不同的答案。
+        “在本文这一个无冲突方案之上”的最大值。本文在 $\valQthreeLayoutCases$ 个无冲突方案（表~\ref{tab:q2schemes} 的四种读法）
+        上各解一次装填，可装填数介于 $\valQthreeLayoutMin$ 与 $\valQthreeLayoutMax$ 之间（相差 $\valQthreeLayoutSpreadPercent\%$），
+        而对应的自由单元数只相差 $\valQthreeLayoutFreeSpreadPercent\%$——由引理~\ref{lem:tiling}，
+        可装填数量主要取决于既有布局与相位划分的\emph{对齐程度}，而非自由单元的\emph{总数}。
         若要回答“跨所有无冲突方案的最大值”，需把问题 2 与问题 3 合并为一个联合优化，规模将显著增大。
-  \item \textbf{问题 4 的方案延长了时间范围}。间隔变长把最后一次使用推后，最晚结束时刻由 $\valQtwoHorizonAfter$
-        增至 $\valQfourHorizonAfter$（第~\ref{sec:q4horizon} 节）。题目未对问题 4 提出“不增加时频资源”的要求，
-        但若按此理解，应加入硬约束 $e_i\le\valQtwoHorizonAfter$ 重解；该变体本文未做。
+  \item \textbf{问题 4 的“不增加时频资源”是本文自加的解释}。题目只在问题 3 写明该要求，问题 4 未重复；
+        本文按同一尺度加入硬约束 $e_i\le\valQfourHorizonCap$（第~\ref{sec:q4horizon} 节），
+        并同时报告去掉该约束的变体（撤销 $\valQfourFreeCancelTotal$、最晚结束时刻 $\valQfourFreeHorizon$）。
+        若命题人本意是不设限，应以变体为准；两种读法的结果都已给出，本文不替评阅者做这一判断。
   \item \textbf{离散化与动作集合是题目给定的}。$\Delta f$、$\Delta t$ 的粒度、“只改一个参数”的限制、
         平移幅度上限均为外生。连续化模型、多参数联合调整、功率或方向性维度都未建模。
   \item \textbf{物理层机制未建模}（假设~\ref{as:indep}）。真实电磁兼容需要保护带、空间隔离、
@@ -66,7 +70,8 @@
 基于本文的定量结果，提出三条建议：
 \textbf{其一}，适度放宽频段调整权限比增加带宽更有效——把最大频段平移幅度由 $10\Delta f$ 提高到 $15\Delta f$，
 即可把必须撤销的计划数从 $\valSensBaseCancelTotal$ 降为 $\valSensMinCancelTotal$（第~\ref{sec:sens} 节）；
-\textbf{其二}，允许 C 类装备微调用频间隔是低成本的松弛——它把撤销数从 $\valQtwoCancelTotal$ 降到 $\valQfourCancelTotal$
-（表~\ref{tab:q4compare}），但需注意其代价是时间范围延长 $\valQfourHorizonDelta\Delta t$；
+\textbf{其二}，允许 C 类装备微调用频间隔是低成本的松弛——在不增加时频资源（$e_i\le\valQfourHorizonCap$）的前提下，
+它把撤销数从 $\valQtwoCancelTotal$ 降到 $\valQfourCancelTotal$（表~\ref{tab:q4compare}），
+代价是多调整 $\valQfourAdjustDelta$ 个计划；
 \textbf{其三}，若提报时能引导 C 类装备按引理~\ref{lem:tiling} 的相位错开（首次时刻相差 $d_C$ 的整数倍），
 同一频带的利用率可接近 $100\%$，从源头上减少冲突。

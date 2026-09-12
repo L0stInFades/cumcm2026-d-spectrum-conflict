@@ -1210,6 +1210,35 @@ def sensitivity(ctx: StageContext) -> dict[str, Any]:
     ctx.number("SensAllOptimal", PASS if all(r["all_optimal"] for r in rows) else FAIL)
     ctx.number("SensAllValid", PASS if all(r["validator_ok"] for r in rows) else FAIL)
     ctx.number("SensMonotone", PASS if monotone else FAIL)
+    # Per-case macros, so that the paper can attribute a change to one parameter at a time instead of
+    # quoting the extremum over the whole grid (which varies both limits at once).
+    words = {2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 9: "Nine", 10: "Ten", 11: "Eleven",
+             15: "Fifteen", 20: "Twenty"}
+    by_case = {(r["fmax"], r["tmax"]): r for r in rows}
+    for (fmax, tmax), r in by_case.items():
+        if fmax in words and tmax in words and r["cancel_total"] is not None:
+            key = f"SensPhi{words[fmax]}Tau{words[tmax]}"
+            ctx.number(f"{key}Cancel", r["cancel_total"])
+            ctx.number(f"{key}Adjust", r["adjust_total"])
+    # One-at-a-time elasticities: cancellations avoided per extra unit of each limit, holding the other
+    # at the value the problem statement gives. Reported instead of the raw "twice as effective" claim,
+    # which compares a +5 df increment against a +3 dt increment.
+    def _cancel(fmax: int, tmax: int) -> int | None:
+        r = by_case.get((fmax, tmax))
+        return None if r is None else r["cancel_total"]
+
+    base_f, base_t = int(base["fmax"]), int(base["tmax"])
+    lo_f, lo_t = _cancel(5, base_t), _cancel(base_f, 2)
+    if lo_f is not None and base["cancel_total"] is not None:
+        ctx.number("SensFreqElasticity", (lo_f - base["cancel_total"]) / (base_f - 5), ".1f")
+        ctx.number("SensFreqLowCancel", lo_f)
+    if lo_t is not None and base["cancel_total"] is not None:
+        ctx.number("SensTimeElasticity", (lo_t - base["cancel_total"]) / (base_t - 2), ".1f")
+        ctx.number("SensTimeLowCancel", lo_t)
+    if lo_f is not None and lo_t is not None and base["cancel_total"] is not None:
+        per_f = (lo_f - base["cancel_total"]) / (base_f - 5)
+        per_t = (lo_t - base["cancel_total"]) / (base_t - 2)
+        ctx.number("SensElasticityRatio", per_f / per_t if per_t else float("nan"), ".2f")
     return {"cases": [(r["fmax"], r["tmax"], r["vector"]) for r in rows], "monotone": monotone}
 
 

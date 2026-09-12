@@ -82,10 +82,13 @@ $\valQoneUsePairs$ 对相交的使用次，其中许多并非首次）。
 
 \subsection{符号说明}
 
+全文使用的符号汇总于表~\ref{tab:symbols}。
+
+\captionof{table}{全文符号说明。}\label{tab:symbols}
 \begin{longtable}{@{}p{0.20\linewidth}p{0.60\linewidth}p{0.14\linewidth}@{}}
 \toprule 符号 & 含义 & 单位 \\ \midrule \endhead \bottomrule \endfoot
 $\Delta f,\ \Delta t$ & 频域与时域的基本资源单位（题目给定，未赋数值） & --- \\
-$B=100$ & 频段总数，编号 $0,\dots,B-1$ & $\Delta f$ \\
+$B=100$ & 频段总数，编号 $0,\dots,B-1$；总带宽 $B\Delta f$ & 个 \\
 $N=\valQonePlans$ & 用频计划（装备）总数 & 个 \\
 $c(i)\in\{A,B,C\}$ & 计划 $i$ 所属的装备类别，优先级 $A\succ B\succ C$ & --- \\
 $P_i=(f_i,w_i,s_i,d_i,g_i,n_i)$ & 计划 $i$：频段起点、频宽、首次起始时刻、单次时长、间隔、次数 & --- \\
@@ -99,7 +102,9 @@ $O_i$ & 计划 $i$ 的动作集合（保持 / 频移 / 时移 / 改间隔 / 撤�
 $o=(\text{kind},\ \delta)$ & 一个动作：类型与幅度 & --- \\
 $y_{i,o}\in\{0,1\}$ & 计划 $i$ 采取动作 $o$ 时取 $1$ & --- \\
 $P_i^{o}$ & 计划 $i$ 采取动作 $o$ 后的计划（撤销时为空） & --- \\
-$\mathcal{C}$ & 时频单元全集 $\{0,\dots,B-1\}\times\{0,\dots,T_{\mathrm{end}}-1\}$ & 单元 \\
+$\mathcal{C}$ & 原始计划占用范围内的时频单元全集 $\{0,\dots,B-1\}\times\{0,\dots,T_{\mathrm{end}}-1\}$ & 单元 \\
+$\mathcal{C}_2$ & 问题 2/4 模型的单元全集，取 $T_{\max}=\max_{i,o}e(P_i^{o})$（动作可把计划推出 $T_{\mathrm{end}}$） & 单元 \\
+$\mathcal{R}$ & 问题 3 的资源区域 $\{0,\dots,B-1\}\times\{0,\dots,T_{\mathrm{end}}-1\}$（与 $\mathcal{C}$ 同，但作为约束而非索引集） & 单元 \\
 $R_{b,t}$ & 覆盖单元 $(b,t)$ 的全部 $(i,o)$ 变量下标集合（“单元行”） & --- \\
 $\Phi$ & 最大频段平移幅度（题目为 $10$） & $\Delta f$ \\
 $\mathcal{T}$ & 最大时间平移幅度（题目为 $5$） & $\Delta t$ \\
@@ -108,8 +113,13 @@ $L=(L_1,\dots,L_7)$ & 七级词典序目标向量（式~\eqref{eq:lex}） & --- 
 $A(o)$ & 动作 $o$ 的归一化幅度 $|\delta|/\Phi+|\tau|/\mathcal{T}+|\Delta g|/\Gamma$ & --- \\
 $x_{f,s}\in\{0,1\}$ & 问题 3 中在频段起点 $f$、首次时刻 $s$ 放置一个新增 C 类计划 & --- \\
 $\mathcal{F}$ & 问题 2 方案留下的自由单元集合 & 单元 \\
+$\mathcal{S}_2,\ \mathcal{S}_4$ & 问题 2 / 问题 4 方案中未被撤销（存留）的计划下标集合 & --- \\
+$\sigma$ & 新增 C 类计划的时间跨度 $d_C+(n_C-1)\pi_C$ & $\Delta t$ \\
+$\mathcal{P}$ & 问题 3 的候选放置位置集合 $\{(f,s)\}$ & --- \\
+$m$ & 词典序目标的层数（本文 $m=7$） & --- \\
 $v_k,\ \underline{v}_k$ & 第 $k$ 级的取值与求解器给出的证明下界 & --- \\
 \end{longtable}
+\addtocounter{table}{-1}% 同上：抵消 longtable 自身的计数器步进
 
 \noindent 附件 1 给定的三类装备参数完全同质，汇总如表~\ref{tab:data}；该表由数据本身生成，
 生成时在程序中断言“同类计划的 $(w,d,g,n)$ 完全相同”，断言不成立则阶段失败。

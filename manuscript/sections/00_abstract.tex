@@ -4,7 +4,8 @@
 
 \textbf{问题 1} 由半开区间判据给出精确检测：成对枚举（双指针归并）与按频段分桶的扫描线两种算法独立实现，
 输出完全一致。$\valQonePlans$ 个计划中检出 $\valQoneConflictPairs$ 对冲突，涉及 $\valQonePlansInConflict$ 个计划、
-$\valQoneUsePairs$ 对相交的使用次；冲突图只有 $\valQoneComponents$ 个连通分量（规模 $\valQoneLargestComponent$）却很稀疏
+$\valQoneConflictUses$ 个使用次（构成 $\valQoneUsePairs$ 对相交的使用次）；卷入冲突的 $\valQoneLargestComponent$ 个计划
+连成唯一一个连通分量（另有 $\valQoneIsolatedPlans$ 个计划与任何计划都不冲突），但图很稀疏
 （平均度 $\valQoneMeanDegree$、密度 $\valQoneDensity$）；B--C 类冲突占六成以上。
 时频单元占用率仅 $\valQoneOccupancyPercent\%$，表明\textbf{冲突源于局部拥塞而非资源总量不足}。
 
@@ -13,7 +14,8 @@ $\valQoneUsePairs$ 对相交的使用次；冲突图只有 $\valQoneComponents$ 
 （撤销 A/B/C $\to$ 调整 A/B/C $\to$ 归一化幅度）。求解采用现任解保持的逐级搜索：每级加入由可行现任解导出的上界割，
 该割不删去任何最优解，却保证报告值永不劣于任何已知可行解。结果为保留 $\valQtwoKeepTotal$、调整 $\valQtwoAdjustTotal$、
 撤销 $\valQtwoCancelTotal$，且\textbf{撤销的全部是 C 类，A、B 类一个未撤}。撤销三级 $\valQtwoValueCancela/\valQtwoValueCancelb/\valQtwoValueCancelc$
-经 CP-SAT 闭合对偶间隙，为\textbf{已证明的全局最优}；由此直接得到推论：在不撤销 A、B 类的前提下“零撤销”不可行。
+经 CP-SAT 闭合对偶间隙，为\textbf{已证明的全局最优}；由此直接得到两个推论：任何无冲突方案都至少要撤销一个计划；
+且在坚持不撤销任何 A、B 类计划的前提下，被撤销的 C 类计划数恰好最少为 $\valQtwoValueCancelc$。
 调整各级未闭合间隙，本文只报告“值 / 证明下界 / 状态”，不作最优性声明。
 
 \textbf{问题 3} 归结为二维集合装填。指出题干“不限制平移幅度”存在实质歧义：既有计划固定（解释 A）
@@ -22,13 +24,18 @@ $\boldsymbol{\valQthreeNewPlans}$ 个 C 类装备，且 CP-SAT 对偶界、HiGHS
 间隙为 $\valQthreeGap$，利用率由 $\valQthreeUtilBefore\%$ 升至 $\valQthreeUtilAfter\%$；
 对解释 B 则由面积守恒给上界、由首次适配重排给构造下界，得区间 $[\valQthreeAltRepackNewPlans,\ \valQthreeAltRepackBound]$。
 
-\textbf{问题 4} 为 C 类增加“改间隔”动作后重解同一模型：撤销数由 $\valQtwoCancelTotal$ 降至 $\valQfourCancelTotal$（降幅四分之一），
-代价是多调整 $\valQfourAdjustDelta$ 个计划、且时间范围延长 $\valQfourHorizonDelta\Delta t$——本文明确指出并讨论了这一代价。
+\textbf{问题 4} 为 C 类增加“改间隔”动作后重解同一模型，并按问题 3 的同一尺度加入“不增加时频资源”的硬约束
+$e_i\le\valQfourHorizonCap$：撤销数由 $\valQtwoCancelTotal$ 降至 $\valQfourCancelTotal$，
+代价是多调整 $\valQfourAdjustDelta$ 个计划，而时间范围\emph{未被延长}。
+去掉该硬约束的变体一并报告（撤销 $\valQfourFreeCancelTotal$、最晚结束时刻 $\valQfourFreeHorizon$），供对照。
 
 \textbf{检验}：四个独立校验器全部通过（零剩余冲突）；$\valBenchTinyInstances$ 个随机微型实例与穷举最优
-$\valBenchTinyAgree/\valBenchTinyInstances$ 一致；两个求解器、两种标量化交叉验证。
+$\valBenchTinyAgree/\valBenchTinyInstances$ 一致（其中 $\valBenchTinyWithCancellations$ 个实例的撤销层非零）；
+两个求解器交叉验证，分离权重标量化在问题 2 复现词典序解、在问题 4 未复现（词典序解严格更优，命题~\ref{prop:cut} 保证不会出现反向矛盾）。
 灵敏度分析给出一条有实用价值的结论：把最大频段平移幅度由 $10\Delta f$ 放宽到 $15\Delta f$，
-撤销数即由 $\valSensBaseCancelTotal$ 降为 $\valSensMinCancelTotal$，且频域放宽的效果约为时域的两倍。
+撤销数即由 $\valSensBaseCancelTotal$ 降为 $\valSensMinCancelTotal$；
+按单位增量折算，每放宽 $1\Delta f$ 平均少撤销 $\valSensFreqElasticity$ 个计划，每放宽 $1\Delta t$ 少撤销 $\valSensTimeElasticity$ 个，
+频域的单位效果约为时域的 $\valSensElasticityRatio$ 倍。
 
 \par\vspace{0.5em}
 \noindent\textbf{关键词：}时频冲突检测；冲突图；词典序整数规划；约束规划（CP-SAT）；二维集合装填；最优性界

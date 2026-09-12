@@ -18,11 +18,12 @@
 \end{table}
 
 
-\needspace{5\baselineskip}
+\needspace{12\baselineskip}
 \captionof{table}{问题 1 检测出的全部 $\valQoneConflictPairs$ 对时频冲突（按装备编号字典序，与 \nolinkurl{result1.xlsx} 一致）。
 “冲突使用次对数”为该计划对中发生时间重叠的使用次对数，“频段重叠宽度”以 $\Delta f$ 计。}
 \label{tab:q1conflicts}
 {\footnotesize\input{generated/tables/tab_q1_conflicts.tex}}
+\addtocounter{table}{-1}% longtable 自身也步进了 table 计数器，此处抵消，保证表号连续
 
 \subsection{问题 2：被撤销计划与逐计划动作}
 
@@ -30,23 +31,26 @@
 \centering\small
 \caption{问题 2 中被撤销计划的局部环境。“冲突邻居数”为该计划在冲突图中的度，
 “其中 A/B 类”为这些邻居中高优先级装备的个数，“可用平移动作数”为式~\eqref{eq:options} 中该计划的合法平移动作数。
-每个被撤销的计划都被高优先级邻居包围，这正是它们不得不让路的原因。}
+多数被撤销的计划被高优先级邻居包围；表中也有邻居数仅为 $1$ 的计划，说明原始度数不是撤销的直接原因，
+真正起作用的是最后一列——没有任何一个合法单参数动作能使它与存留计划都不冲突。}
 \label{tab:q2cancel}
 \resizebox{\linewidth}{!}{\input{generated/tables/tab_q2_cancelled.tex}}
 \end{table}
 
-\needspace{5\baselineskip}
+\needspace{12\baselineskip}
 \captionof{table}{问题 2 的逐计划动作清单（只列出被调整或被撤销的计划，与 \nolinkurl{result2.xlsx} 一致）。}
 \label{tab:q2adj}
 {\footnotesize\input{generated/tables/tab_q2_adjustments.tex}}
+\addtocounter{table}{-1}% longtable 自身也步进了 table 计数器，此处抵消，保证表号连续
 
 \subsection{问题 3：新增计划清单}
 
-\needspace{5\baselineskip}
+\needspace{12\baselineskip}
 \captionof{table}{问题 3 在解释 A 下新增的 $\valQthreeNewPlans$ 个 C 类用频计划（与 \nolinkurl{result3.xlsx} 一致；
 间隔时长与使用次数按假设~\ref{as:pack} 与附件 C 类相同）。}
 \label{tab:q3plans}
 {\footnotesize\input{generated/tables/tab_q3_plans.tex}}
+\addtocounter{table}{-1}% longtable 自身也步进了 table 计数器，此处抵消，保证表号连续
 
 \subsection{问题 4：模型规模、目标方案与逐计划动作}
 
@@ -71,10 +75,11 @@
 \resizebox{\linewidth}{!}{\input{generated/tables/tab_q4_schemes.tex}}
 \end{table}
 
-\needspace{5\baselineskip}
+\needspace{12\baselineskip}
 \captionof{table}{问题 4 的逐计划动作清单（只列出被调整或被撤销的计划，与 \nolinkurl{result4.xlsx} 一致）。}
 \label{tab:q4adj}
 {\footnotesize\input{generated/tables/tab_q4_adjustments.tex}}
+\addtocounter{table}{-1}% longtable 自身也步进了 table 计数器，此处抵消，保证表号连续
 
 \subsection{模型检验：微型实例穷举对照与规模基准}
 

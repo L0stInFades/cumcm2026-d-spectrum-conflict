@@ -99,13 +99,17 @@ $\valQoneConflictPairs$ 对冲突；在 $n=\valBenchScaleMinN,\dots,\valBenchSca
 
 \begin{enumerate}[leftmargin=1.8em,itemsep=0.2em]
   \item \textbf{撤销数量对频段平移上限极其敏感。}把 $\Phi$ 由 $10$ 放宽到 $15$，撤销数由 $\valSensBaseCancelTotal$
-        直接降到 $\valSensMinCancelTotal$——\emph{一个计划都不必撤销}；反之收紧到 $\Phi=5$，撤销数升至
-        $\valSensMaxCancelTotal$。这再次印证第~\ref{sec:q1} 节的判断：
+        直接降到 $\valSensMinCancelTotal$——\emph{一个计划都不必撤销}；反之在 $\mathcal{T}=5$ 不变时把 $\Phi$ 收紧到 $5$，
+        撤销数升至 $\valSensPhiFiveTauFiveCancel$；若同时把 $\mathcal{T}$ 收紧到 $2$，则升至 $\valSensPhiFiveTauTwoCancel$。这再次印证第~\ref{sec:q1} 节的判断：
         \textbf{撤销源于局部拥塞与幅度上限，而非资源总量不足}。
-  \item \textbf{频域比时域更“贵”。}把两个上限分别放宽，可以定量比较二者的作用：
-        $\Phi$ 由 $5$ 增至 $10$（$\mathcal{T}$ 固定）使撤销数减少约三十个；
-        而 $\mathcal{T}$ 由 $2$ 增至 $5$（$\Phi$ 固定）只减少约十余个。
-        \textbf{频域放宽的效果约为时域的两倍}——这与问题 1 中“B--C 类冲突占六成以上、而 B 类频宽最大”的统计一致。
+  \item \textbf{频域比时域更“贵”。}两个上限的增量不等（$+5\Delta f$ 对 $+3\Delta t$），直接比较总降幅会误导，
+        故按\emph{单位增量}折算：$\Phi$ 由 $5$ 增至 $10$（$\mathcal{T}$ 固定为题给的 $5$）使撤销数由
+        $\valSensFreqLowCancel$ 降到 $\valSensBaseCancelTotal$，合每 $1\Delta f$ 少撤销 $\valSensFreqElasticity$ 个；
+        $\mathcal{T}$ 由 $2$ 增至 $5$（$\Phi$ 固定为题给的 $10$）使撤销数由 $\valSensTimeLowCancel$ 降到
+        $\valSensBaseCancelTotal$，合每 $1\Delta t$ 少撤销 $\valSensTimeElasticity$ 个。
+        \textbf{频域的单位效果约为时域的 $\valSensElasticityRatio$ 倍}——这与问题 1 中“B--C 类冲突占六成以上、
+        而 B 类频宽最大”的统计一致。该比值依赖于所取的两个基准点，换一组对照会得到不同的数值，
+        故只作数量级判断，不作精确结论。
   \item \textbf{一条有实际价值的管理建议。}若能把最大频段平移幅度由 $10\Delta f$ 放宽到 $15\Delta f$，
         代价仅是多调整一个计划、归一化总幅度由 $\valQtwoAmplitude$ 升至表~\ref{tab:sens} 第五行所示的水平，
         却可以\emph{完全避免撤销}。
@@ -114,7 +118,7 @@ $\valQoneConflictPairs$ 对冲突；在 $n=\valBenchScaleMinN,\dots,\valBenchSca
 
 \paperfigure[0.94\linewidth]{fig_sensitivity}{消解方案对最大平移幅度的灵敏度。(a) 被调整（按类别堆叠）与被撤销（黑）的计划数；
 (b) 归一化总调整幅度。频段平移上限由 $10\Delta f$ 放宽到 $15\Delta f$ 时撤销数降为 $\valSensMinCancelTotal$，
-收紧到 $5\Delta f$ 时升至 $\valSensMaxCancelTotal$，说明冲突主要源于频域拥塞。}{fig:sens}
+在 $\mathcal{T}=5$ 不变时收紧到 $5\Delta f$ 则升至 $\valSensPhiFiveTauFiveCancel$，说明冲突主要源于频域拥塞。}{fig:sens}
 
 \paragraph{单调性检查及其有效范围（诚实说明）。}动作集合更大的情形其最优向量应当不劣于基准，
 更小的情形应当不优于基准；该检查通过（\valSensMonotone{}）。但必须指出：自现任解保持算法引入后，

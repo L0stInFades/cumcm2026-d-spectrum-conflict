@@ -14,7 +14,7 @@
 
 \begin{proposition}[冲突的单元格刻画]\label{prop:cell}
 两个用频计划 $P_i,P_j$ 存在时频冲突，当且仅当 $U(P_i)\cap U(P_j)\neq\varnothing$，
-当且仅当
+当且仅当式~\eqref{eq:conflict} 成立：
 \begin{equation}\label{eq:conflict}
   \begin{aligned}
     &\underbrace{f_i<f_j+w_j\ \ \wedge\ \ f_j<f_i+w_i}_{\text{频段区间相交}}\\[2pt]
@@ -94,7 +94,8 @@ $E\leftarrow\varnothing$\;
 
 检测共发现 $\boldsymbol{\valQoneConflictPairs}$ \textbf{对}时频冲突（表~\ref{tab:q1summary}），
 涉及 $\valQonePlansInConflict$ 个计划——即 $\valQonePlans$ 个计划中只有
-$\valQonePlans-\valQonePlansInConflict$ 个完全不与任何其他计划冲突。全部结果按装备编号字典序写入 \nolinkurl{result1.xlsx}，共 $\valResultOneRows$ 行。
+$\valQoneIsolatedPlans$ 个完全不与任何其他计划冲突。全部结果按装备编号字典序写入 \nolinkurl{result1.xlsx}，共 $\valResultOneRows$ 行，
+明细见附录表~\ref{tab:q1conflicts}。
 若把“冲突对”细化到使用次，则共有 $\valQoneUsePairs$ 对使用次在时频平面上重叠：
 多数冲突对只在一次使用上相撞，但附录表~\ref{tab:q1mult} 的末行显示，存在计划对在其全部 $\valDataUsesC$ 次使用上相撞。
 
@@ -128,6 +129,11 @@ B--C 之间最多，达 $\valQoneConflictPairsBC$ 对）；(b) 冲突图的度�
 
 \section{问题二：冲突消解的词典序整数规划}
 \label{sec:q2}
+
+\noindent\textbf{本节回答}：如何以最小代价把第~\ref{sec:q1} 节检出的全部冲突消除？
+结论是保留 $\valQtwoKeepTotal$、调整 $\valQtwoAdjustTotal$、撤销 $\valQtwoCancelTotal$，
+且被撤销的全部是 C 类，A、B 两类一个未撤；撤销三级已闭合对偶间隙（定理~\ref{thm:q2opt}），
+调整各级只报“值 / 证明下界 / 状态”。以下先给决策变量与无冲突的充要编码，再给词典序目标、求解算法，最后给最优性证据与四种目标读法的对照。
 
 \subsection{决策变量与动作集合}
 
@@ -177,7 +183,7 @@ $T_{\max}=\max_{i,\,o\in O_i}e(P_i^{o})$ 并取 $\mathcal{C}_2=\{0,\dots,B-1\}\t
 
 \paragraph{加强约束。}整数规划的求解效率在很大程度上取决于线性松弛的强度与传播能力\cite{wolsey2020,achterberg2013}。
 为此另加入两族\emph{冗余}约束（它们由式~\eqref{eq:atmostone} 蕴含，因而不改变可行域）：
-（i）\textbf{成对蕴含团}：对变量 $(i,o)$ 与另一计划 $j$，令 $C_j(i,o)$ 为 $j$ 中与 $(i,o)$ 共享单元的动作集合，
+（i）\textbf{成对蕴含团}（式~\eqref{eq:clique}）：对变量 $(i,o)$ 与另一计划 $j$，令 $C_j(i,o)$ 为 $j$ 中与 $(i,o)$ 共享单元的动作集合，
 由于 $j$ 恰选一个动作，$\{(i,o)\}\cup C_j(i,o)$ 构成一个团，故
 \begin{equation}\label{eq:clique}
   y_{i,o}+\sum_{o'\in C_j(i,o)} y_{j,o'}\ \le\ 1 ;
@@ -322,7 +328,7 @@ $\valQtwoTimeShifted$ 个计划平移了时间（平均 $|\tau|=\valQtwoMeanAbsT
 
 \paperfigure[0.80\linewidth]{fig_q2_resolution}{问题 2 的冲突消解方案。(a) 消解前：按所采取的动作着色
 （灰 = 保持、蓝 = 频段平移、橙 = 时间平移、斜线 = 撤销），黑边为发生冲突的使用次；
-(b) 消解后：$\valQonePlans-\valQtwoCancelTotal$ 个存留计划在时频平面上已无任何冲突，
+(b) 消解后：$\valQtwoRemainingPlans$ 个存留计划在时频平面上已无任何冲突，
 箭头指示每个被平移计划的移动方向。图例中的“间隔调整”一项在问题 2 中不可用（见问题 4，图~\ref{fig:q4res}）。}{fig:q2res}
 
 \subsection{最优性证据}
@@ -442,6 +448,10 @@ S（完全不含优先级，只看总量与幅度）、W（纯加权和，$w_A:w
 
 \section{问题三：在无冲突方案上最多还能安排多少 C 类装备}
 \label{sec:q3}
+
+\noindent\textbf{本节回答}：在第~\ref{sec:q2} 节的无冲突方案之上、不增加时频资源，最多还能安排多少 C 类用频计划？
+结论是 $\valQthreeNewPlans$ 个，且 CP-SAT 对偶界、HiGHS 线性松弛界与 MILP 界三者同时等于该值，
+即它是\emph{已证明的最大值}。本节先说明题面的两种读法及本文的取舍，再给装填模型、上界与结果。
 
 \subsection{题意的两种解释}
 
@@ -627,11 +637,20 @@ C 类计划的周期为 $\pi_C=d_C+g_C=\valDataDurationC+\valDataGapC$，单次�
 模型规模相应增大：变量由 $\valQtwoVars$ 增至 $\valQfourVars$、单元由 $\valQtwoCells$ 增至 $\valQfourCells$、
 约束由 $\valQtwoRows$ 增至 $\valQfourRows$。
 
-注意间隔调整会\emph{改变计划的结束时刻} $e_i=s_i+d_i+(n_i-1)(d_i+g_i')$，这一点将在第~\ref{sec:q4horizon} 节讨论。
+注意式~\eqref{eq:gapoptions} 的动作会\emph{改变计划的结束时刻} $e_i=s_i+d_i+(n_i-1)(d_i+g_i')$，
+因而可能多占用时间资源；本文为此加入硬约束 $e_i\le T_{\mathrm{cap}}$，见第~\ref{sec:q4horizon} 节。
 
-\begin{proposition}[问题 4 不劣于问题 2]\label{prop:q4dom}
-问题 4 的可行域包含问题 2 的可行域（动作集合是超集），故问题 4 的词典序最优向量在词典序上不劣于问题 2 的最优向量。
+\begin{proposition}[问题 4 不劣于问题 2 的报告解]\label{prop:q4dom}
+设 $T_{\mathrm{cap}}$ 为问题 4 所加的资源守恒上限（本文取原始计划的最晚结束时刻 $\valQfourHorizonCap$）。
+问题 4 的动作集合是问题 2 的超集，但附加了 $e_i\le T_{\mathrm{cap}}$，因此\emph{一般而言两者的可行域互不包含}。
+不过，凡是最晚结束时刻不超过 $T_{\mathrm{cap}}$ 的问题 2 可行解都仍是问题 4 的可行解；
+本文报告的问题 2 方案满足这一条件（其最晚结束时刻为 $\valQtwoHorizonAfter\le\valQfourHorizonCap$），
+故问题 4 的报告向量在词典序上不劣于问题 2 的报告向量（本文在阶段内断言该性质：\valQfourLexNotWorse{}）。
 \end{proposition}
+\begin{remark}
+若去掉 $e_i\le T_{\mathrm{cap}}$，动作集合的超集关系即给出无条件的包含，此时问题 4 的最优向量不劣于问题 2 的最优向量；
+本文一并报告了这一不设限变体（第~\ref{sec:q4horizon} 节）。
+\end{remark}
 
 \subsection{求解结果与对照}
 
@@ -651,7 +670,8 @@ C 类计划的周期为 $\pi_C=d_C+g_C=\valDataDurationC+\valDataGapC$，单次�
 
 表~\ref{tab:q4table1} 给出题目要求的表 1 格式结果：保留 $\valQfourKeepTotal$ 个、调整 $\valQfourAdjustTotal$ 个、
 撤销 $\valQfourCancelTotal$ 个，目标向量 $\valQfourVector$；与问题 2 一样，
-\textbf{A、B 两类计划仍然一个也没有撤销}。写入 \nolinkurl{result4.xlsx} 共 $\valResultFourRows$ 行。
+\textbf{A、B 两类计划仍然一个也没有撤销}。写入 \nolinkurl{result4.xlsx} 共 $\valResultFourRows$ 行，
+逐计划动作清单见附录表~\ref{tab:q4adj}，被撤销计划的局部环境见附录表~\ref{tab:q4cancel}。
 
 核心结论由表~\ref{tab:q4compare} 给出：\textbf{允许 C 类调整间隔，可把必须撤销的计划从 $\valQtwoCancelTotal$ 个减少到
 $\valQfourCancelTotal$ 个}（$\valQfourCancelDelta$，降幅四分之一），代价是多调整 $\valQfourAdjustDelta$ 个计划、
@@ -691,13 +711,19 @@ $\valQfourCancelTotal$ 个}（$\valQfourCancelDelta$，降幅四分之一），�
 热启动提示的向量为 $\valQfourHintVector$，其第三个分量即提示解的撤销 C 数量，
 而词典序搜索在保持前两级不变的前提下把它进一步改进到 $\valQfourValueCancelc$。
 
-\paragraph{一个必须指出的代价。}间隔变长会把最后一次使用推后，故问题 4 方案的最晚结束时刻为
-$\valQfourHorizonAfter$，比问题 2 的 $\valQtwoHorizonAfter$ 延长了 $\valQfourHorizonDelta$ 个 $\Delta t$。
-题目只在问题 3 中提出“不增加时频资源”，对问题 4 并未设此约束，故本文不对结束时刻设限；
-但若评阅者按“资源总量不变”理解问题 4，则本方案实际上多占用了时间资源。
-这是一个真实的取舍：\textbf{用 $\valQfourHorizonDelta\Delta t$ 的时间跨度，换回若干本来必须撤销的用频计划
-（撤销数 $\valQtwoCancelTotal\to\valQfourCancelTotal$）}。
-若不接受这一代价，只需在模型中加入硬约束 $e_i\le\valQtwoHorizonAfter$ 重新求解；该变体本文未做，列为局限（第~\ref{sec:eval} 节）。
+\paragraph{时间资源守恒（MDR-0011）。}间隔变长会把最后一次使用推后，因此“改间隔”这一动作有可能多占用时间资源。
+题目只在问题 3 中写明“不增加时频资源”，问题 4 的题面未重复这一条；但既然同一份用频计划所能占用的时频资源
+在问题 3 中被明确限定，本文对问题 4 采用同一尺度：把 $e_i\le T_{\mathrm{cap}}=\valQfourHorizonCap$
+（即问题 2 方案的最晚结束时刻）作为\emph{硬约束}写进模型，在动作层面直接过滤掉会越界的动作，
+并由独立校验器断言存留计划的最晚结束时刻不超过 $T_{\mathrm{cap}}$。
+本文报告的问题 4 方案因此满足 $\valQfourHorizonAfter\le\valQfourHorizonCap$，
+\textbf{没有多占用任何时间资源}，撤销数仍由 $\valQtwoCancelTotal$ 降到 $\valQfourCancelTotal$。
+
+为量化这一约束的代价，本文另解一次\emph{不设限}变体（同一动作集合，去掉 $e_i\le T_{\mathrm{cap}}$，
+以受限解热启动，故其向量不会比受限解更差）：它给出向量 $\valQfourFreeVector$、
+撤销总数 $\valQfourFreeCancelTotal$、最晚结束时刻 $\valQfourFreeHorizon$。
+该变体是否\emph{严格}优于受限解：\valQfourFreeStrictlyBetter{}；两者是否给出同一向量：\valQfourFreeSameAsCapped{}。
+两个版本的对照见表~\ref{tab:q4compare}，读者可据此自行判断“是否值得用时间跨度换回用频计划”。
 
 \paragraph{交叉验证的诚实说明。}问题 4 的分离权重单目标在其时限内只回到一个\emph{更差}的向量，
 未能复现词典序解（\valQfourWeightedAgree{}）。这不构成矛盾——词典序解严格更优，
