@@ -1,0 +1,135 @@
+{
+  "schema": "forge.manifest/1",
+  "run_id": "20260912-102234-ea48b61",
+  "stage": "release",
+  "status": "completed",
+  "started_at": "2026-09-12T08:42:07+00:00",
+  "finished_at": "2026-09-12T08:42:07+00:00",
+  "duration_s": 0.0,
+  "code_ref": {
+    "git_sha": "298acb2ed150bf7d0eebbd1823b88bfd85553b4d",
+    "branch": "main",
+    "dirty": false,
+    "code_digest": "471d7eb16f4065883894aa47580baaed541e16fe0dbc03527e32cc83567c68f8",
+    "files": 106
+  },
+  "params": {
+    "code_ref": {
+      "git_sha": "298acb2ed150bf7d0eebbd1823b88bfd85553b4d",
+      "branch": "main",
+      "dirty": false
+    },
+    "size": "medium",
+    "submitted_at": "2026-09-12T16:41:46",
+    "stages": [
+      "package",
+      "release"
+    ]
+  },
+  "config_digest": "3818a25b77cb1b8e7e7612ede38c145d1b0233e31cee2011fe2518fd19235254",
+  "deps": {
+    "package": "e03bf939d97b7d39445e30b7d33358079e94f613cc1fe4804bf00435a4f26153"
+  },
+  "inputs": {
+    "D题.pdf": {
+      "sha256": "04945c2db24cd6cb659de55e6a23ddd43553ec61bc1c7741010a7eac220712a9",
+      "bytes": 442550
+    },
+    "附件/附件1.xlsx": {
+      "sha256": "b7f905cd2629f9a85b47db352be503404a0cd5b8f70b9209aafdf7e262f3449c",
+      "bytes": 16067
+    },
+    "附件/附件2/result1.xlsx": {
+      "sha256": "6657970f5ead42a0ddaacc29f6d3f0e25538661446a1b6672491a2d83fdd664c",
+      "bytes": 10135
+    },
+    "附件/附件2/result2.xlsx": {
+      "sha256": "53f6feb7bbf0bdfb8fbe15af35e0759a45933120928a05231fc8fe3569fefb8e",
+      "bytes": 9832
+    },
+    "附件/附件2/result3.xlsx": {
+      "sha256": "6e7072651e204fa07e0dad2b6ddd1ceb72d74f41905e5d2ba44deea0456feead",
+      "bytes": 8362
+    },
+    "附件/附件2/result4.xlsx": {
+      "sha256": "95e45e755e9fc9e30d45fa0cd4c4cc638a94e4d5c7201f09828ed7fdcaef75b9",
+      "bytes": 9854
+    }
+  },
+  "outputs": {
+    "AI工具使用详情.pdf": {
+      "sha256": "7d8279fa7426deaecc3275ad9dc05c533570d89a67211fd1ddd1f8e4d19a6f63",
+      "bytes": 109404
+    },
+    "RELEASE_NOTES.md": {
+      "sha256": "abfd505d9a3a0a5d0f4b363b3140ad73639a84c7a3507e6e88fbf8e96e9fe336",
+      "bytes": 836
+    },
+    "release_manifest.json": {
+      "sha256": "e72643495aada7f040443dd4e27d4e8a442f09763dfc10475df8c1f65786fb2f",
+      "bytes": 1199
+    },
+    "result1.xlsx": {
+      "sha256": "068dae0d7027457595b75d8085cc261520acce4e762e37c1c17cb59c47d208a8",
+      "bytes": 10679
+    },
+    "result2.xlsx": {
+      "sha256": "0c3da8881b8eadc4ae14411e41e5894a21324d8f24be7ec554505b5395469a5e",
+      "bytes": 7479
+    },
+    "result3.xlsx": {
+      "sha256": "69cda6ac503f2bc15c0c320ca83b5466ba328fc3a8de0459633f8e5773082ded",
+      "bytes": 7690
+    },
+    "result4.xlsx": {
+      "sha256": "12cc70f80666a2a6ae70ec66996512d6c7c6706b475b4b57db5a0850937cca98",
+      "bytes": 7518
+    },
+    "支撑材料.zip": {
+      "sha256": "719a9f9122153ce13633446706fdfb18fb460bf448a123be8b4dc7997d4f6d09",
+      "bytes": 1607422
+    },
+    "论文.pdf": {
+      "sha256": "84e813203f73a84511df4a3bfccac54c8e7cb7115a189c27b162f193a862ef31",
+      "bytes": 1918656
+    }
+  },
+  "outputs_digest": "56d764d70526033021acd01f517c3a640fe2b7a5bee0d094abbc59acb10da914",
+  "metrics": {
+    "files": 7,
+    "paper_bytes": 1918656
+  },
+  "runtime": {
+    "python": "3.11.12",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+    "cpu_count": 24,
+    "modal_task_id": "ta-01M2ACFEJY9Q3BHT8PKCKE570R",
+    "modal_is_remote": true,
+    "packages": {
+      "numpy": "2.2.6",
+      "scipy": "1.15.3",
+      "pandas": "2.2.3",
+      "pyarrow": "20.0.0",
+      "openpyxl": "3.1.5",
+      "matplotlib": "3.10.3",
+      "scikit-learn": "1.6.1",
+      "statsmodels": "0.14.4",
+      "ortools": "9.12.4544",
+      "highspy": "1.10.0",
+      "numba": "0.61.2",
+      "cvxpy": "1.6.5",
+      "networkx": "3.4.2",
+      "pymupdf": "1.26.7",
+      "pytest": "8.3.5",
+      "hypothesis": "6.131.9",
+      "ruff": "0.11.10",
+      "mypy": "1.15.0"
+    },
+    "env": {
+      "OMP_NUM_THREADS": "8",
+      "OPENBLAS_NUM_THREADS": "8",
+      "PYTHONHASHSEED": "0"
+    }
+  },
+  "error": null
+}
