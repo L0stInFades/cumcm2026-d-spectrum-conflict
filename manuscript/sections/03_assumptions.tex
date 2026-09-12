@@ -90,7 +90,7 @@ $N=\valQonePlans$ & 用频计划（装备）总数 & 个 \\
 $c(i)\in\{A,B,C\}$ & 计划 $i$ 所属的装备类别，优先级 $A\succ B\succ C$ & --- \\
 $P_i=(f_i,w_i,s_i,d_i,g_i,n_i)$ & 计划 $i$：频段起点、频宽、首次起始时刻、单次时长、间隔、次数 & --- \\
 $[f_i,\,f_i+w_i)$ & 计划 $i$ 占用的频段区间 & $\Delta f$ \\
-$I_i^{(k)}=[\,s_i+k\pi_i,\ s_i+d_i+k\pi_i)$ & 计划 $i$ 第 $k$ 次使用的时间区间，$\pi_i=d_i+g_i$ 为周期 & $\Delta t$ \\
+$I_i^{(k)}$ & 计划 $i$ 第 $k$ 次使用的时间区间 $[\,s_i+k\pi_i,\ s_i+d_i+k\pi_i)$，其中 $\pi_i=d_i+g_i$ 为周期 & $\Delta t$ \\
 $U(P)$ & 计划 $P$ 占用的时频单元集合，$|U(P)|=wdn$ & 单元 \\
 $e_i=s_i+d_i+(n_i-1)\pi_i$ & 计划 $i$ 的结束时刻（不含） & $\Delta t$ \\
 $T_{\mathrm{end}}$ & 一组计划的最晚结束时刻 $\max_i e_i$（时间范围） & $\Delta t$ \\
@@ -120,5 +120,5 @@ $v_k,\ \underline{v}_k$ & 第 $k$ 级的取值与求解器给出的证明下界 
 “时间跨度”为 $d+(n-1)(d+g)$，即单个计划从首次使用开始到最后一次使用结束所横跨的时长；
 “单计划单元数”为 $w\,d\,n$。}
 \label{tab:data}
-\input{generated/tables/tab_data.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_data.tex}}
 \end{table}

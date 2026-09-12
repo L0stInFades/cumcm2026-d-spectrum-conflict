@@ -16,9 +16,10 @@
 两个用频计划 $P_i,P_j$ 存在时频冲突，当且仅当 $U(P_i)\cap U(P_j)\neq\varnothing$，
 当且仅当
 \begin{equation}\label{eq:conflict}
-  \underbrace{f_i<f_j+w_j\ \wedge\ f_j<f_i+w_i}_{\text{频段区间相交}}
-  \quad\wedge\quad
-  \exists\,k,l:\ \underbrace{s_i+k\pi_i<s_j+d_j+l\pi_j\ \wedge\ s_j+l\pi_j<s_i+d_i+k\pi_i}_{\text{第 }k\text{ 次与第 }l\text{ 次使用在时间上相交}} .
+  \begin{aligned}
+    &\underbrace{f_i<f_j+w_j\ \ \wedge\ \ f_j<f_i+w_i}_{\text{频段区间相交}}\\[2pt]
+    \wedge\quad &\exists\,k,l:\ \underbrace{s_i+k\pi_i<s_j+d_j+l\pi_j\ \ \wedge\ \ s_j+l\pi_j<s_i+d_i+k\pi_i}_{\text{第 }k\text{ 次使用与第 }l\text{ 次使用在时间上相交}}\,.
+  \end{aligned}
 \end{equation}
 \end{proposition}
 
@@ -82,7 +83,7 @@ $E\leftarrow\varnothing$\;
 \begin{minipage}[t]{0.54\linewidth}
 \centering
 \caption{问题 1 的冲突统计摘要。}\label{tab:q1summary}
-\input{generated/tables/tab_q1_summary.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q1_summary.tex}}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.42\linewidth}
 \centering
@@ -95,7 +96,7 @@ $E\leftarrow\varnothing$\;
 涉及 $\valQonePlansInConflict$ 个计划——即 $\valQonePlans$ 个计划中只有
 $\valQonePlans-\valQonePlansInConflict$ 个完全不与任何其他计划冲突。全部结果按装备编号字典序写入 \nolinkurl{result1.xlsx}，共 $\valResultOneRows$ 行。
 若把“冲突对”细化到使用次，则共有 $\valQoneUsePairs$ 对使用次在时频平面上重叠：
-多数冲突对只在一次使用上相撞，但表~\ref{tab:q1mult} 的末行显示，存在计划对在其全部 $\valDataUsesC$ 次使用上相撞。
+多数冲突对只在一次使用上相撞，但附录表~\ref{tab:q1mult} 的末行显示，存在计划对在其全部 $\valDataUsesC$ 次使用上相撞。
 
 类别对矩阵（表~\ref{tab:q1cat}）揭示了冲突的来源：B--C 之间的冲突多达 $\valQoneConflictPairsBC$ 对，
 占全部冲突的六成以上；A--A 之间\emph{一对也没有}（$\valQoneConflictPairsAA$ 对）。
@@ -105,33 +106,19 @@ C 类数量最多（$\valDataPlansC$ 个）且使用次数最多（$\valDataUses
 换言之，\textbf{冲突主要产生在“频域宽”的 B 类与“时域密”的 C 类之间}——这一判断在第~\ref{sec:sens} 节的
 灵敏度分析中得到独立印证（放宽频段平移上限的收益约为放宽时间平移上限的两倍）。
 
-\begin{table}[htbp]
-\centering\small
-\begin{minipage}[t]{0.46\linewidth}
-\centering
-\caption{冲突强度分布：横跨 $k$ 对使用次的冲突对数量。}\label{tab:q1mult}
-\input{generated/tables/tab_q1_multiplicity.tex}
-\end{minipage}\hfill
-\begin{minipage}[t]{0.46\linewidth}
-\centering
-\caption{冲突图中度最大的 $10$ 个用频装备。}\label{tab:q1deg}
-\input{generated/tables/tab_q1_top_degree.tex}
-\end{minipage}
-\end{table}
-
 从图论看，冲突图 $G$ 有 $\valQoneComponents$ 个规模不小于 $2$ 的连通分量，其规模为 $\valQoneLargestComponent$：
 \textbf{几乎所有卷入冲突的计划连成一片}。这一点对建模至关重要——它意味着不能把问题拆成若干独立的小块分别求解，
 必须在全局上一次性消解。同时 $G$ 很稀疏（密度 $\valQoneDensity$，平均度 $\valQoneMeanDegree$，最大度 $\valQoneMaxDegree$，
-度最大者为 $\valQoneTopDegreeId$，表~\ref{tab:q1deg}），这提示“局部让路”的空间是存在的：
+度最大者为 $\valQoneTopDegreeId$，附录表~\ref{tab:q1deg}），这提示“局部让路”的空间是存在的：
 每个计划平均只需避开 $\valQoneMeanDegree$ 个对手。图~\ref{fig:q1gantt} 与图~\ref{fig:q1structure} 给出时频平面的全局图景与冲突结构。
 
-\paperfigure{fig_q1_gantt}{附件 1 中 $\valQonePlans$ 个用频计划在时频平面上的甘特图。
+\paperfigure[0.88\linewidth]{fig_q1_gantt}{附件 1 中 $\valQonePlans$ 个用频计划在时频平面上的甘特图。
 横轴为时间（$\Delta t$），纵轴为频段编号（$\Delta f$）；每个矩形为一个计划的一次使用，
 颜色区分 A（蓝）、B（橙）、C（绿）三类装备；黑色描边标出参与冲突的 $\valQoneUsePairs$ 个使用次。
 全区域 $\valQoneCellsTotal$ 个时频单元中 $\valQoneCellsOccupied$ 个被占用（$\valQoneOccupancyPercent\%$），
 其中 $\valQoneCellsOverlap$ 个被两个及以上计划同时占用。}{fig:q1gantt}
 
-\paperfigure{fig_q1_structure}{冲突的结构。(a) 按装备类别对统计的冲突对数矩阵（共 $\valQoneConflictPairs$ 对，
+\paperfigure[0.88\linewidth]{fig_q1_structure}{冲突的结构。(a) 按装备类别对统计的冲突对数矩阵（共 $\valQoneConflictPairs$ 对，
 B--C 之间最多，达 $\valQoneConflictPairsBC$ 对）；(b) 冲突图的度分布，最大度 $\valQoneMaxDegree$、
 平均度 $\valQoneMeanDegree$，$\valQonePlansInConflict$ 个计划至少与一个其他计划冲突。}{fig:q1structure}
 
@@ -146,8 +133,10 @@ B--C 之间最多，达 $\valQoneConflictPairsBC$ 对）；(b) 冲突图的度�
 
 按假设~\ref{as:shift}--\ref{as:oneaction}，计划 $i$ 的动作集合为
 \begin{equation}\label{eq:options}
-  O_i=\{\textsf{keep}\}\ \cup\ \{\textsf{freq}_\delta:\ 0<|\delta|\le\Phi,\ 0\le f_i+\delta,\ f_i+\delta+w_i\le B\}
-  \ \cup\ \{\textsf{time}_\tau:\ 0<|\tau|\le\mathcal{T},\ s_i+\tau\ge 0\}\ \cup\ \{\textsf{cancel}\},
+  \begin{aligned}
+    O_i=\ \{\textsf{keep}\}\ &\cup\ \{\textsf{freq}_\delta:\ 0<|\delta|\le\Phi,\ \ 0\le f_i+\delta,\ \ f_i+\delta+w_i\le B\}\\
+    &\cup\ \{\textsf{time}_\tau:\ 0<|\tau|\le\mathcal{T},\ \ s_i+\tau\ge 0\}\ \cup\ \{\textsf{cancel}\},
+  \end{aligned}
 \end{equation}
 其中 $\Phi=10$、$\mathcal{T}=5$。动作 $o$ 把计划 $P_i$ 变为 $P_i^{o}$（撤销时 $P_i^{o}=\varnothing$）。
 引入 $0$--$1$ 变量 $y_{i,o}$ 表示“计划 $i$ 采取动作 $o$”，则\emph{恰选一个动作}即
@@ -271,7 +260,7 @@ $x^\ast\leftarrow x_0$ \textbf{若} $x_0$ 可行 \textbf{否则} $\varnothing$\q
 算法~\ref{alg:lex} 的两条性质对本文的诚实性至关重要：（i）由命题~\ref{prop:cut}，\emph{各级最优值不受割影响}，
 故凡状态为 \textsf{OPTIMAL} 的层级，其值仍是真正的全局最优；（ii）返回向量在词典序上\emph{永不劣于}任何已知可行解，
 因而“交叉验证的解比主解更好”这种自相矛盾不可能出现。热启动解取自仓库内经独立校验的现任解文件
-（其目标向量 $\valQtwoHintVector$，可行性检查 $\valQtwoHintFeasible$），使本文结果可由仓库直接复现（MDR-0008）。
+（其目标向量 $\valQtwoHintVector$，可行性检查 \valQtwoHintFeasible{}），使本文结果可由仓库直接复现（MDR-0008）。
 
 求解器为 OR-Tools CP-SAT\cite{ortools2025}（$24$ 线程、固定随机种子、显式加入核心引导子求解器），
 各级时限 $[20,20,600,300,300,300,240]$ 秒，总用时 $\valQtwoCpsatSeconds$ s；
@@ -282,15 +271,15 @@ $x^\ast\leftarrow x_0$ \textbf{若} $x_0$ 可行 \textbf{否则} $\varnothing$\q
 
 \begin{table}[htbp]
 \centering\small
-\begin{minipage}[t]{0.46\linewidth}
+\begin{minipage}[t]{0.38\linewidth}
 \centering
 \caption{\textbf{问题 2：时频冲突消解的统计结果}（题目表 1 格式）。}\label{tab:q2table1}
 \input{generated/tables/tab_q2_table1.tex}
 \end{minipage}\hfill
-\begin{minipage}[t]{0.50\linewidth}
+\begin{minipage}[t]{0.58\linewidth}
 \centering
 \caption{问题 2 模型规模与求解设置。}\label{tab:q2model}
-\input{generated/tables/tab_q2_model.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q2_model.tex}}
 \end{minipage}
 \end{table}
 
@@ -310,7 +299,7 @@ $\valQtwoTimeShifted$ 个计划平移了时间（平均 $|\tau|=\valQtwoMeanAbsT
 \textbf{本方案没有占用任何额外的时间资源}。逐计划的动作清单见附录表~\ref{tab:q2adj}，
 写入 \nolinkurl{result2.xlsx} 的共 $\valResultTwoRows$ 行（保持不变的计划按模板不填写）。
 
-\paperfigure{fig_q2_resolution}{问题 2 的冲突消解方案。(a) 消解前：按所采取的动作着色
+\paperfigure[0.80\linewidth]{fig_q2_resolution}{问题 2 的冲突消解方案。(a) 消解前：按所采取的动作着色
 （灰 = 保持、蓝 = 频段平移、橙 = 时间平移、斜线 = 撤销），黑边为发生冲突的使用次；
 (b) 消解后：$\valQonePlans-\valQtwoCancelTotal$ 个存留计划在时频平面上已无任何冲突，
 箭头指示每个被平移计划的移动方向。图例中的“间隔调整”一项在问题 2 中不可用（见问题 4，图~\ref{fig:q4res}）。}{fig:q2res}
@@ -325,7 +314,7 @@ $\valQtwoTimeShifted$ 个计划平移了时间（平均 $|\tau|=\valQtwoMeanAbsT
 HiGHS 为对同一模型的独立建模；“Time limit reached”表示 HiGHS 在其时限内未能证明最优，此时其界不构成额外信息。}
 \label{tab:q2solver}
 \setlength{\tabcolsep}{4pt}
-\input{generated/tables/tab_q2_solver.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q2_solver.tex}}
 \end{table}
 
 表~\ref{tab:q2solver} 逐级如实报告“值 / 证明下界 / 状态”。据此，本文\textbf{能够而且只能够}作如下最优性声明：
@@ -346,7 +335,7 @@ HiGHS 为对同一模型的独立建模；“Time limit reached”表示 HiGHS �
 而定理~\ref{thm:q2opt} 已证明该级最小值为 $\valQtwoValueCancelc>0$。
 \end{corollary}
 
-对于调整各级与幅度级，求解器在给定预算内\emph{未能}闭合间隙（$\valQtwoAllOptimal$：并非各级均证明最优）。
+对于调整各级与幅度级，求解器在给定预算内\emph{未能}闭合间隙（\valQtwoAllOptimal{}：并非各级均证明最优）。
 本文因此严格区分两类陈述：表~\ref{tab:q2table1} 的调整数量是\textbf{已知最好的可行方案}，
 其真实最优值落在表~\ref{tab:q2solver} 给出的 $[\underline{v}_k,\,v_k]$ 区间内；本文\textbf{不声称}它们全局最优。
 为判断这是预算不足还是已接近最优，本文另以数倍于表~\ref{tab:q2solver} 所列时限的预算对“调整 A”一级做过一次
@@ -372,7 +361,7 @@ S（完全不含优先级，只看总量与幅度）、W（纯加权和，$w_A:w
 \centering\small
 \caption{四种目标方案在问题 2 上的对照（每级时限 $30$ s，故其向量仅作定性对照，不作最优性声明）。
 方案 P 是唯一在问题 2 与问题 4 中都不撤销任何 A、B 类计划的方案。}\label{tab:q2schemes}
-\input{generated/tables/tab_q2_schemes.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q2_schemes.tex}}
 \end{table}
 
 表~\ref{tab:q2schemes} 给出了一个\emph{清晰而重要}的结论：方案 T 与 S 能把撤销总数从 $\valQtwoSchemePCancelTotal$
@@ -463,7 +452,7 @@ $T_{\mathrm{end}}=\valQthreeHorizon$（问题 2 方案的最晚结束时刻）�
 \caption{问题 3 的解与上界链。三个独立的上界（CP-SAT 对偶界、HiGHS 线性松弛界、HiGHS MILP 界）
 与解值同为 $\valQthreeNewPlans$，故对偶间隙为零。末行为备选解释 B 的区间（第~\ref{sec:q3alt} 节）。}
 \label{tab:q3summary}
-\input{generated/tables/tab_q3_summary.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q3_summary.tex}}
 \end{table}
 
 \begin{theorem}[问题 3 的最优性]\label{thm:q3}
@@ -472,7 +461,7 @@ $\boldsymbol{\valQthreeNewPlans}$ 个 C 类用频装备，且这一数量是全�
 \end{theorem}
 \begin{proof}
 可行性：CP-SAT 返回了一个含 $\valQthreeNewPlans$ 个位置的可行解，该解经独立校验器复核——
-每个新增计划的参数、边界、与既有计划以及彼此之间的零冲突全部通过（$\valQthreeValidator$）。
+每个新增计划的参数、边界、与既有计划以及彼此之间的零冲突全部通过（\valQthreeValidator{}）。
 最优性：CP-SAT 在状态 $\valQthreeCpsatStatus$ 下给出对偶界 $\valQthreeCpsatBound$；
 HiGHS 对同一模型的线性松弛最优值为 $\valQthreeLpValue$，故整数最优值 $\le\lfloor\valQthreeLpValue\rfloor=\valQthreeLpBound$；
 HiGHS MILP 亦以状态 $\valQthreeHighsStatus$ 给出界 $\valQthreeHighsBound$。三者与解值相等，间隙 $\valQthreeGap$。
@@ -481,7 +470,7 @@ HiGHS MILP 亦以状态 $\valQthreeHighsStatus$ 给出界 $\valQthreeHighsBound$
 安排这 $\valQthreeNewPlans$ 个新增计划后，时频资源利用率由 $\valQthreeUtilBefore\%$ 提高到 $\valQthreeUtilAfter\%$
 （图~\ref{fig:q3layout}，清单见附录表~\ref{tab:q3plans}，写入 \nolinkurl{result3.xlsx} 共 $\valResultThreeRows$ 行）。
 
-\paperfigure{fig_q3_layout}{在问题 2 的无冲突方案（灰）之上最多可再安排 $\valQthreeNewPlans$ 个 C 类用频计划（绿）。
+\paperfigure[0.86\linewidth]{fig_q3_layout}{在问题 2 的无冲突方案（灰）之上最多可再安排 $\valQthreeNewPlans$ 个 C 类用频计划（绿）。
 资源区域为 $100$ 个频段 $\times\,[0,\valQthreeHorizon)$；新增计划与既有计划、以及新增计划彼此之间均无时频冲突。
 时频利用率由 $\valQthreeUtilBefore\%$ 提升至 $\valQthreeUtilAfter\%$。新增计划呈现明显的\emph{水平条带}结构，
 这是引理~\ref{lem:tiling} 所刻画的相位平铺。}{fig:q3layout}
@@ -518,8 +507,8 @@ C 类计划的周期为 $\pi_C=d_C+g_C=\valDataDurationC+\valDataGapC$，单次�
   \item \textbf{上界}：由命题~\ref{prop:area}，$M\le\valQthreeAltRepackBound$（该界只依赖面积守恒，对 A、B 同时成立）。
   \item \textbf{下界}：任何一个可行布局都给出下界。本文按“占用单元数降序的首次适配”把全部
         $\valQthreeAltRepackMoved$ 个既有计划重新放置（$w,d,g,n$ 全部不变，且区域包含性与零冲突经同一独立校验器复核，
-        $\valQthreeAltRepackValidator$），再在剩余自由单元上用同一模型~\eqref{eq:pack} 求最大新增数，
-        得 $\valQthreeAltRepackNewPlans$（状态 $\valQthreeAltRepackStatus$，即该布局下的\emph{精确}最大值）。
+        \valQthreeAltRepackValidator{}），再在剩余自由单元上用同一模型~\eqref{eq:pack} 求最大新增数，
+        得 $\valQthreeAltRepackNewPlans$（状态 \valQthreeAltRepackStatus{}，即该布局下的\emph{精确}最大值）。
         解释 A 的最优值 $\valQthreeNewPlans$ 本身也是 B 的一个下界。
 \end{itemize}
 
@@ -531,7 +520,7 @@ C 类计划的周期为 $\pi_C=d_C+g_C=\valDataDurationC+\valDataGapC$，单次�
 \textbf{两种解释的答案相差约五倍}（$\valQthreeNewPlans$ 对 $\ge\valQthreeAltRepackNewPlans$），
 差别完全来自“是否允许既有计划再次平移”。本文无法断定命题人的本意，故以 A 作答并把 B 的区间作为正式的备选分析给出。
 
-\paperfigure{fig_q3_repack}{备选解释 B 下的布局：若允许既有计划不受平移幅度限制地重新放置
+\paperfigure[0.80\linewidth]{fig_q3_repack}{备选解释 B 下的布局：若允许既有计划不受平移幅度限制地重新放置
 （按占用单元数降序的首次适配重排，$\valQthreeAltRepackMoved$ 个计划全部移动，各自的频宽、时长、间隔与次数均不变），
 同一资源区域可再安排 $\valQthreeAltRepackNewPlans$ 个 C 类计划。
 与图~\ref{fig:q3layout} 对照可见，重排把既有计划压到低频段与早时刻，从而腾出大片连续的自由区域。}{fig:q3repack}
@@ -563,15 +552,15 @@ C 类计划的周期为 $\pi_C=d_C+g_C=\valDataDurationC+\valDataGapC$，单次�
 
 \begin{table}[htbp]
 \centering\small
-\begin{minipage}[t]{0.44\linewidth}
+\begin{minipage}[t]{0.38\linewidth}
 \centering
 \caption{\textbf{问题 4：时频冲突消解的统计结果}（题目表 1 格式）。}\label{tab:q4table1}
 \input{generated/tables/tab_q4_table1.tex}
 \end{minipage}\hfill
-\begin{minipage}[t]{0.52\linewidth}
+\begin{minipage}[t]{0.58\linewidth}
 \centering
 \caption{问题 4 与问题 2 的逐类别对照。}\label{tab:q4compare}
-\input{generated/tables/tab_q4_compare.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q4_compare.tex}}
 \end{minipage}
 \end{table}
 
@@ -581,12 +570,12 @@ C 类计划的周期为 $\pi_C=d_C+g_C=\valDataDurationC+\valDataGapC$，单次�
 
 核心结论由表~\ref{tab:q4compare} 给出：\textbf{允许 C 类调整间隔，可把必须撤销的计划从 $\valQtwoCancelTotal$ 个减少到
 $\valQfourCancelTotal$ 个}（$\valQfourCancelDelta$，降幅四分之一），代价是多调整 $\valQfourAdjustDelta$ 个计划、
-归一化总幅度增加 $\valQfourAmplitudeDelta$。词典序不劣性检查通过（$\valQfourLexNotWorse$），与命题~\ref{prop:q4dom} 一致。
+归一化总幅度增加 $\valQfourAmplitudeDelta$。词典序不劣性检查通过（\valQfourLexNotWorse{}），与命题~\ref{prop:q4dom} 一致。
 在 $\valQfourAdjustTotal$ 个被调整的计划中，$\valQfourGapChanged$ 个使用了新增的间隔调整动作
 （平均 $|\Delta g|=\valQfourMeanAbsGapChange$、最大 $\valQfourMaxAbsGapChange$），
 其余仍为频段平移（$\valQfourFreqShifted$ 个）或时间平移（$\valQfourTimeShifted$ 个）。
 
-\paperfigure{fig_q4_resolution}{问题 4 的冲突消解方案，图例与图~\ref{fig:q2res} 相同，
+\paperfigure[0.80\linewidth]{fig_q4_resolution}{问题 4 的冲突消解方案，图例与图~\ref{fig:q2res} 相同，
 另增“间隔调整”一类（$\valQfourGapChanged$ 个 C 类计划改变了使用间隔）。}{fig:q4res}
 
 \paperfigure[0.94\linewidth]{fig_q4_comparison}{问题 4 与问题 2 的对照。(a) 各类被调整的计划数；
@@ -607,7 +596,7 @@ $\valQfourCancelTotal$ 个}（$\valQfourCancelDelta$，降幅四分之一），�
 在时限内未能闭合间隙，故 $\valQfourCancelTotal$ 是\emph{已知最好的可行值}而非已证明的最优值。}
 \label{tab:q4solver}
 \setlength{\tabcolsep}{4pt}
-\input{generated/tables/tab_q4_solver.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q4_solver.tex}}
 \end{table}
 
 表~\ref{tab:q4solver} 显示：撤销 A、B 两级为 $0$ 且状态 \textsf{OPTIMAL}（故“不撤销任何 A、B 类计划”在问题 4 中同样被证明可行且最优）；
@@ -626,6 +615,6 @@ $\valQfourHorizonAfter$，比问题 2 的 $\valQtwoHorizonAfter$ 延长了 $\val
 若不接受这一代价，只需在模型中加入硬约束 $e_i\le\valQtwoHorizonAfter$ 重新求解；该变体本文未做，列为局限（第~\ref{sec:eval} 节）。
 
 \paragraph{交叉验证的诚实说明。}问题 4 的分离权重单目标在其时限内只回到一个\emph{更差}的向量，
-未能复现词典序解（$\valQfourWeightedAgree$）。这不构成矛盾——词典序解严格更优，
+未能复现词典序解（\valQfourWeightedAgree{}）。这不构成矛盾——词典序解严格更优，
 且由命题~\ref{prop:cut} 其值永不劣于任何已知可行解——但它说明：在该规模上，
-单次加权求解弱于逐级求解。HiGHS 在其证明最优的各级与 CP-SAT 一致（$\valQfourHighsAgree$）。
+单次加权求解弱于逐级求解。HiGHS 在其证明最优的各级与 CP-SAT 一致（\valQfourHighsAgree{}）。

@@ -1,7 +1,22 @@
 本附录收录正文中引用但因篇幅置于此处的完整表格。全部表格由 \nolinkurl{tables} 阶段生成
 （\nolinkurl{.tex} 与同名 \nolinkurl{.csv} 并存），数值与结果工作簿一致。
 
-\subsection{问题 1：全部冲突对}
+\subsection{问题 1：冲突强度、度分布与全部冲突对}
+
+\begin{table}[htbp]
+\centering\small
+\begin{minipage}[t]{0.46\linewidth}
+\centering
+\caption{冲突强度分布：横跨 $k$ 对使用次的冲突对数量。多数冲突对只在一次使用上相撞。}\label{tab:q1mult}
+\input{generated/tables/tab_q1_multiplicity.tex}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\linewidth}
+\centering
+\caption{冲突图中度最大的 $10$ 个用频装备。}\label{tab:q1deg}
+\input{generated/tables/tab_q1_top_degree.tex}
+\end{minipage}
+\end{table}
+
 
 \needspace{5\baselineskip}
 \captionof{table}{问题 1 检测出的全部 $\valQoneConflictPairs$ 对时频冲突（按装备编号字典序，与 \nolinkurl{result1.xlsx} 一致）。
@@ -17,7 +32,7 @@
 “其中 A/B 类”为这些邻居中高优先级装备的个数，“可用平移动作数”为式~\eqref{eq:options} 中该计划的合法平移动作数。
 每个被撤销的计划都被高优先级邻居包围，这正是它们不得不让路的原因。}
 \label{tab:q2cancel}
-\input{generated/tables/tab_q2_cancelled.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q2_cancelled.tex}}
 \end{table}
 
 \needspace{5\baselineskip}
@@ -40,12 +55,12 @@
 \begin{minipage}[t]{0.52\linewidth}
 \centering
 \caption{问题 4 的模型规模与求解设置。}\label{tab:q4model}
-\input{generated/tables/tab_q4_model.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q4_model.tex}}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.44\linewidth}
 \centering
 \caption{问题 4 中被撤销计划的局部环境（列的含义同表~\ref{tab:q2cancel}）。}\label{tab:q4cancel}
-\input{generated/tables/tab_q4_cancelled.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q4_cancelled.tex}}
 \end{minipage}
 \end{table}
 
@@ -53,7 +68,7 @@
 \centering\small
 \caption{四种目标方案在问题 4 上的对照（列的含义同表~\ref{tab:q2schemes}，另给出使用间隔调整动作的计划数）。}
 \label{tab:q4schemes}
-\input{generated/tables/tab_q4_schemes.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q4_schemes.tex}}
 \end{table}
 
 \needspace{5\baselineskip}
@@ -77,7 +92,7 @@
 CP-SAT 一列采用固定 $120$ s 时限，故其状态只说明“在该预算内找到了可行解”，不代表可证明最优。}
 \label{tab:benchscaling}
 \setlength{\tabcolsep}{4pt}
-\input{generated/tables/tab_bench_scaling.tex}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_bench_scaling.tex}}
 \end{table}
 
 \paperfigure[0.92\linewidth]{fig_bench_scaling}{算法的规模基准。合成实例 $n=\valBenchScaleMinN,\dots,\valBenchScaleMaxN$ 下

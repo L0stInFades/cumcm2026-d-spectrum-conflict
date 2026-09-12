@@ -11,7 +11,7 @@
         \nolinkurl{run resolve_interval --size large --spawn}，随后 \nolinkurl{wait <ID>} 或轮询 \nolinkurl{status}。
   \item 其余科学阶段：\nolinkurl{run pack,bench,sensitivity --size large}，再 \nolinkurl{run compare,results,figures,tables}。
   \item 门禁与论文：\nolinkurl{run lint,test} 与 \nolinkurl{run paper,qa,package,release}。
-  \item 下载与核对：\nolinkurl{download --stage <阶段>} 会逐文件核对 SHA-256；
+  \item 下载与核对：\nolinkurl{download --stage <name>} 会逐文件核对 SHA-256；
         \nolinkurl{release --version <tag>} 生成交付目录与发布清单。
 \end{enumerate}
 
@@ -34,6 +34,6 @@
 \subsection{已知的不确定性}
 
 $\valQonePlans$ 个计划的完整模型采用多线程求解，单次求解耗时数十分钟，本文未做重复求解以验证位对位的确定性
-（记为“$\valQtwoDeterministic$”）；微型实例上的确定性检验为 $\valBenchTinyDeterministic/\valBenchTinyInstances$ 通过。
+（记为“\valQtwoDeterministic{}”）；微型实例上的确定性检验为 $\valBenchTinyDeterministic/\valBenchTinyInstances$ 通过。
 需要强调：本文\emph{已证明最优}的结论（定理~\ref{thm:q2opt}、\ref{thm:q3}）由求解器的证明下界保证，
 与是否复现出同一个最优解无关；\emph{未证明最优}的层级则本就以区间形式报告。
