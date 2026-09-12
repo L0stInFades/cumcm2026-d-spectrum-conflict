@@ -94,7 +94,7 @@ def _max_independent_set(
     solver.parameters.max_time_in_seconds = float(time_limit)
     status = solver.Solve(cp)
     return {
-        "value": int(round(solver.ObjectiveValue())) if status in (cp_model.OPTIMAL, cp_model.FEASIBLE) else 0,
+        "value": round(solver.ObjectiveValue()) if status in (cp_model.OPTIMAL, cp_model.FEASIBLE) else 0,
         "bound": float(solver.BestObjectiveBound()),
         "status": solver.StatusName(status),
         "members": [i for i in range(n) if status in (cp_model.OPTIMAL, cp_model.FEASIBLE) and solver.Value(x[i])],

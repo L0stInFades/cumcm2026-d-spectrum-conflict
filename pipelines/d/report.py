@@ -553,6 +553,34 @@ def _cancelled_rows(
     return rows
 
 
+def _conditional_table(ctx: StageContext, tag: str, rep: dict[str, Any]) -> None:
+    """Per-level evidence of the conditional problem (MDR-0012): the *set* of cancelled plans is fixed
+    to the reported solution and only the adjustment and amplitude levels are minimised. A bound proved
+    here bounds that restriction, never the unrestricted lexicographic optimum. No-op when the stage ran
+    without ``conditional_time_limits``."""
+    cond = rep.get("conditional") or {}
+    levels = cond.get("levels") or []
+    if not levels:
+        return
+    rows = [
+        [
+            entry["level"],
+            entry.get("value", "-"),
+            f"{entry['bound']:.2f}" if "bound" in entry else "-",
+            entry.get("status", "-"),
+            f"{entry.get('seconds', 0):.1f}",
+        ]
+        for entry in levels
+    ]
+    _write_table(
+        ctx,
+        f"tab_{tag}_conditional",
+        ["目标层级", "值", "已证明下界", "状态", "用时/s"],
+        rows,
+        align="lrrlr",
+    )
+
+
 def _solver_tables(ctx: StageContext, tag: str, rep: dict[str, Any]) -> None:
     """Per-level solver evidence (CP-SAT value/bound/status, HiGHS LP and MILP bounds) and model statistics."""
     solver_rows = []

@@ -379,6 +379,15 @@ $\valQtwoValueCancelc>0$，矛盾。
 于是可以作一个\emph{严格且诚实}的陈述：\textbf{在与本文方案相同的撤销集合之下，$\valQtwoAdjustA$ 个 A 类计划被调整已是最优}。
 必须强调这是受限问题的最优值，不是词典序真优解的分量——若换一个撤销集合，该值可能更小。
 
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{问题 2 的条件最优性（MDR-0012）：把被撤销计划的\emph{集合}固定为表~\ref{tab:q2table1} 所报告的那
+$\valQtwoValueCancelc$ 个 C 类计划之后，对调整三级与幅度级逐级最小化的结果。此处的“已证明下界”与状态
+\textsf{OPTIMAL} 只对该\emph{受限}问题成立，不构成对词典序真优解相应分量的界。}
+\label{tab:q2conditional}
+\input{generated/tables/tab_q2_conditional.tex}
+\end{table}
+
 \paragraph{一个与求解器无关的下界。}两个相互冲突的计划不可能都\emph{保持原样}，故任一无冲突方案中保持不变的计划集合
 是冲突图 $G$ 的独立集，于是
 \begin{equation}\label{eq:alpha}
