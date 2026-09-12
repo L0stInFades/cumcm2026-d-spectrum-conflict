@@ -246,3 +246,44 @@
 
 - **正文**：`tab_q1_summary`（问题 1 统计摘要）、`tab_q1_category`（类别对矩阵）、`tab_q2_table1` 与 `tab_q4_table1`（题目要求的表 1 格式）、`tab_q4_compare`（问题 2/4 对照）、`tab_q3_summary`（问题 3 的解与上界链）、`tab_q2_solver` 与 `tab_q4_solver`（逐级值/下界/状态——**最优性证据，必须进正文**）、`tab_sensitivity`、`tab_q2_schemes` 与 `tab_q4_schemes`（目标方案对照）、`tab_validation`（四个独立校验器的结论）、`tab_bench_tiny`（穷举对照摘要行）。
 - **附录**：`tab_q1_conflicts`（全部 297 对，longtable）、`tab_q1_top_degree`、`tab_q1_multiplicity`、`tab_q2_adjustments` 与 `tab_q4_adjustments`（逐计划动作，longtable）、`tab_q2_cancelled` 与 `tab_q4_cancelled`（被撤销计划的邻域解释）、`tab_q3_plans`（109 个新增计划清单）、`tab_q2_model` 与 `tab_q4_model`（模型规模与热启动来源）、`tab_bench_scaling`。
+
+## 10. 论文（v0.9.0，本轮完成）
+
+正文 29 页（预算 24--30，`qa` 硬限 30）、摘要 1 页、附录 A--D 共 147 页；`qa` 16 项检查全部通过。
+结构与章节文件的对应关系：
+
+| 章节 | 文件 | 要点 |
+|---|---|---|
+| 摘要 | `00_abstract.tex` | 四问的关键数值、最优性界定、检验结论、关键词 6 个 |
+| 1 问题重述 | `01_restatement.tex` | 资源模型、参数、冲突判定、硬约束与优先目标的区分、四个交付物 |
+| 2 问题分析 | `02_analysis.tex` | 四问的共同结构、三个关键抉择、TikZ 技术路线图（图 1） |
+| 3 假设与符号 | `03_assumptions.tex` | 10 条编号假设（区分"题给"与"本文"，各含依据与违反后果）+ 完整符号表 + 表 2（给定参数） |
+| 4--7 四个问题 | `04_models.tex` | 每问：形式化 → 命题与证明 → 算法（algorithm2e）→ 结果表 → 结果分析 |
+| 8 模型检验 | `08_validation.tex` | 五条证据线：独立校验、算法交叉验证、最优性界、穷举与确定性、灵敏度与可扩展性 |
+| 9 评价与推广 | `09_evaluation.tex` | 6 优点 / 6 局限 / 4 推广方向 / 3 条管理建议 |
+| 附录 A | `appendix_tables.tex` | 全部 297 对冲突、逐计划动作、109 个新增计划、模型规模、穷举与规模基准 |
+| 附录 B/C/D | 生成 + `appendix_repro.tex` | 支撑材料清单、复现记录与步骤、完整程序 |
+
+**定理与命题编号**（正文引用）：命题 4.1 冲突的单元格刻画；命题 4.2 检测复杂度；命题 5.1 单元格编码的精确性；
+命题 5.2 词典序与分离权重的等价；命题 5.3 计算复杂性（NP-难）；命题 5.4 现任解上界割的有效性；
+定理 5.5 撤销层的全局最优性；推论 5.6 零撤销不可行；命题 6.1 面积守恒与容量上界；
+定理 6.2 问题 3 的最优性；引理 6.3 C 类计划的相位平铺；命题 7.1 问题 4 不劣于问题 2。
+
+### 本轮修复的排版与一致性缺陷（供后续参考）
+
+1. **中文 `\val` 宏在数学模式中缺字**：取值为"通过/未通过/未检验"的宏被写成 `$\val…$`，
+   数学模式不切换中文字体，产生 73 处 `Missing character`。改为 `\val…{}`（正文模式）。
+2. **`gbt7714` 宏包未加载**：`main.tex` 只设了 `.bst`，`.bst` 产生的作者-年 `\bibitem` 标签被
+   原样打印成 `[Karp(1972)]`。加载 `\usepackage[numbers]{gbt7714}` 后为数字引用 `[1]`。
+3. **附录浮动体漂移**：附录 A 中的巨型 longtable 阻塞了 `[htbp]` 浮动体的放置，6 个表/图被推迟到
+   附录 B/C。改为 `[H]` 并在附录末加 `\FloatBarrier`。
+4. **`\nolinkurl` 吞空格**：复现步骤中的命令被排成 `python3tools/cli.pyprovision`。改用 `\texttt`。
+5. **重复标签**：`sec:validation` 在 `main.tex` 与 `08_validation.tex` 中各定义一次；后者改名 `sec:indepcheck`。
+6. **`ai_usage_body.tex` 不能使用 `\val` 与正文标签**：该文件由《AI工具使用详情.pdf》独立编译，
+   其中没有 `generated/numbers.tex`，也没有正文的定理标签。
+
+### 论文中与结果文件的一致性抽查（本轮复核）
+
+`result2.xlsx` 136 行 = 频段调整 85 + 时间调整 39 + 撤销 12，撤销全部为 C 类，每行恰有一列非空；
+`result4.xlsx` 136 行 = 58 + 38 + 间隔 31 + 撤销 9，间隔调整只出现在 C 类，每行恰有一列非空；
+`result1.xlsx` 297 行；`result3.xlsx` 109 行。四者与正文表 5、表 10 及 `\val` 宏完全一致。

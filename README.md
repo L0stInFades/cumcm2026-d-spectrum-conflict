@@ -34,6 +34,9 @@ python3 tools/cli.py release --version <tag>
 
 检验：四个与求解器分离的独立校验器全部通过；24/24 微型实例与穷举最优一致且可重复；HiGHS 独立建模交叉验证；`qa` 16 项门禁全部通过。
 
+交付物见 `releases/v0.9.0/`：论文（正文 29 页 + 附录）、`result1--4.xlsx`、支撑材料与《AI工具使用详情.pdf》，
+全部文件的 SHA-256 记录在 `release_manifest.json` 中并已本地核对一致。
+
 ## 许可
 
 本仓库以 Unlicense 释出至公有领域（见 `UNLICENSE`）。题目与附件的著作权归全国大学生数学建模竞赛组委会所有，仅为复现目的随仓库保存。
