@@ -597,6 +597,16 @@ C 类计划的周期为 $\pi_C=d_C+g_C=\valDataDurationC+\valDataGapC$，单次�
 而非跨所有无冲突方案的最大值——这一措辞上的限定必须保留。
 联合优化（同时选择问题 2 的方案与新增计划的布局）本文未做，见第~\ref{sec:limits} 节。
 
+\paragraph{优先级条款的第二重代价。}表~\ref{tab:q3layouts} 还给出一个题目本身没有问、但对用频管理有意义的结论：
+四个布局中\emph{最不利于后续新增}的恰是方案 $\valQthreeLayoutMinScheme$（可再安排 $\valQthreeLayoutMin$ 个，
+撤销 $\valQthreeLayoutMinCancelled$ 个），而最有利的是方案 $\valQthreeLayoutMaxScheme$
+（$\valQthreeLayoutMax$ 个，撤销 $\valQthreeLayoutMaxCancelled$ 个）；
+本文主方案 P 是四者中唯一不撤销任何 A、B 类计划的方案，它是否恰为最不利者：\valQthreePrimaryIsWorstHost{}。
+若该判定为“通过”，则坚持“高优先级计划尽量保持”这一条款的代价是\emph{双重}的：
+当期要多撤销若干 C 类计划，而且留给后续新增计划的空间也更小。
+这一点在题目的四个问题里不会出现，但在实际用频规划中值得纳入权衡——
+本文只报告这一观察，不据此建议放弃优先级条款（优先级本身是题目给定的硬性要求）。
+
 \subsection{备选解释 B：允许既有计划重新布局}
 \label{sec:q3alt}
 

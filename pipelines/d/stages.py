@@ -977,6 +977,15 @@ def pack(ctx: StageContext) -> dict[str, Any]:
                 ".1f",
             )
             ctx.number("QthreeLayoutAllValid", PASS if all(r["validator_ok"] for r in layout_rows) else FAIL)
+            lo = min(layout_rows, key=lambda r: r["new_plans"])
+            hi = max(layout_rows, key=lambda r: r["new_plans"])
+            ctx.number("QthreeLayoutMinScheme", lo["scheme"])
+            ctx.number("QthreeLayoutMaxScheme", hi["scheme"])
+            ctx.number("QthreeLayoutMinCancelled", lo["cancelled"])
+            ctx.number("QthreeLayoutMaxCancelled", hi["cancelled"])
+            # Is the paper's primary scheme (the only one that never cancels an A/B plan) the worst host
+            # for future plans? Registered rather than asserted in prose.
+            ctx.number("QthreePrimaryIsWorstHost", PASS if lo["scheme"] == "P" else FAIL)
     # capacity of the empty region (what "no extra resource" could hold at most without any existing plan)
     empty_bound = math.floor(100 * horizon_t / (C_TEMPLATE["w"] * C_TEMPLATE["d"] * C_TEMPLATE["n"]))
     report = {k: v for k, v in result.items() if k not in {"new_plans"}}
