@@ -1,6 +1,6 @@
 # 结果总览（供论文撰写者使用）
 
-> 全部数值来自同一次云端运行 **run `20260912-102234-ea48b61`**（代码 `ea48b61`；lint/test 门禁在 `971a46a` 复跑，仅格式差异）。论文中只能通过 `\val<Key>` 宏或 `generated/tables/*.tex` 引用；下文括号内为 numbers 键名。图文件位于 `figures` 阶段的 `figures/`（PDF + PNG 预览），表文件位于 `tables` 阶段的 `tables/`（同名 CSV 并存）。结果工作簿位于 `results` 阶段目录根。
+> 全部数值来自同一次云端运行 **run `20260912-102234-ea48b61`**，该 run 的 17 个阶段（ingest, validate, detect, resolve, resolve_interval, compare, pack, bench, sensitivity, results, figures, tables, lint, test, paper, qa, fmt）全部 `status=completed`。run id 中的短号是创建该 run 时的提交；各阶段的实际代码版本记录在自身 `manifest.json` 的 `code_ref.git_sha` 中（科学阶段与下游阶段在 MDR-0009 / MDR-0010 落地后整体重跑）。论文中只能通过 `\val<Key>` 宏或 `generated/tables/*.tex` 引用；下文括号内为 numbers 键名。图文件位于 `figures` 阶段的 `figures/`（PDF + PNG 预览），表文件位于 `tables` 阶段的 `tables/`（同名 CSV 并存）。结果工作簿位于 `results` 阶段目录根。
 
 ## 0. 方法总览
 
