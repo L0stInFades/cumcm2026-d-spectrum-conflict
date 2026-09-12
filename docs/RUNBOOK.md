@@ -52,3 +52,27 @@ python3 tools/cli.py release --version v1.0.0       # 交付物到 releases/v1.0
 - 禁止在本地运行任何数据处理或排版命令；禁止手工修改 `artifacts/`、`releases/` 中的产物。
 - 禁止在 `.tex` 中手写结果数字。
 - 禁止提交凭证、`artifacts/`、`__pycache__`。
+
+## 7. 本题（D）的完整运行序列
+
+```bash
+python3 tools/cli.py run ingest,validate,detect --new-run --size small
+# 三个重阶段并行（分离运行），参数即最终 run 所用：
+python3 tools/cli.py run resolve --size large --spawn --param workers=24 \
+  --param 'level_time_limits=[60,60,600,360,360,360,300]' --param highs_time_limit=60 \
+  --param lp_time_limit=120 --param weighted_time_limit=180 --param alt_time_limit=60
+python3 tools/cli.py run resolve_interval --size large --spawn --param workers=24 \
+  --param 'level_time_limits=[60,60,600,360,360,360,300]' --param highs_time_limit=60 \
+  --param lp_time_limit=120 --param weighted_time_limit=180 --param alt_time_limit=60
+python3 tools/cli.py run bench --size medium --spawn --param workers=8
+python3 tools/cli.py run lint,test --size small
+# resolve 完成后：
+python3 tools/cli.py run pack --size large --param workers=24
+python3 tools/cli.py run sensitivity --size large --spawn --param workers=24 \
+  --param 'level_time_limits=[20,20,120,60,60,60,60]'
+# resolve 与 resolve_interval 均完成后：
+python3 tools/cli.py run compare,results,figures,tables --size medium
+python3 tools/cli.py run paper,qa --size medium --param require_results=true
+```
+
+热启动提示默认取 `configs/hints/q2_decisions.json` / `q4_decisions.json`（MDR-0008）；`--param hint_from=""` 可关闭，`--param hint_from=resolve/decisions.json` 可改用本 run 内的解。`--param require_optimal=true` 会在任一级未证明最优时令阶段失败（默认关闭，按"值 / 下界 / 状态"报告）。
