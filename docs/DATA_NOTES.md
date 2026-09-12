@@ -33,4 +33,4 @@
 
 ## 热启动提示文件（configs/hints/）
 
-`q2_decisions.json`、`q4_decisions.json`：前一轮运行（run `20260912-035404-9fddcfc`，代码 `d648058`）经独立校验的问题 2 / 问题 4 现任解，仅记录 (编号, 动作, 幅度) 三元组与来源信息（目标向量、幅度上限）。它们只作为 CP-SAT/HiGHS 的搜索起点（提示），不构成约束；`resolve`/`resolve_interval` 的报告与数字（`QtwoHintFeasible`、`QtwoHintVector` 等）记录提示是否可行及其目标向量。不提供提示时流水线仍可运行，只是现任解可能更差（MDR-0008）。
+`q2_decisions.json`、`q4_decisions.json`：run `20260912-102234-ea48b61` 的 `resolve` / `resolve_interval` 阶段经独立校验的现任解（目标向量分别为 (0,0,12,16,37,71,750) 与 (0,0,9,13,36,78,776)；在该 run 结束后回写，使下一次运行从本轮的最好解出发），仅记录 (编号, 动作, 幅度) 三元组与来源信息（目标向量、幅度上限）。它们只作为 CP-SAT/HiGHS 的搜索起点（提示），不构成约束；`resolve`/`resolve_interval` 的报告与数字（`QtwoHintFeasible`、`QtwoHintVector` 等）记录提示是否可行及其目标向量。不提供提示时流水线仍可运行，只是现任解可能更差（MDR-0008）；自 MDR-0009 起，求解器在每级加入由现任解导出的上界割，因此报告向量在词典序上**永不劣于提示**——这也意味着本轮结果可由本仓库的提示文件直接复现。
