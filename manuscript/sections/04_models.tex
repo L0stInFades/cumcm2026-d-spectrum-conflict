@@ -325,7 +325,7 @@ HiGHS 为对同一模型的独立建模；“Time limit reached”表示 HiGHS �
 \end{theorem}
 \begin{proof}
 第一、二级的求解状态为 \textsf{OPTIMAL} 且值与证明下界同为 $0$，故存在不撤销任何 A、B 类计划的可行解，
-且 $0$ 是最小值。第三级在固定 $L_1=L_2=0$ 之后状态为 $\valQtwoStatusCancelc$，
+且 $0$ 是最小值。第三级在固定 $L_1=L_2=0$ 之后状态为 \textsf{\valQtwoStatusCancelc}，
 值 $\valQtwoValueCancelc$ 与证明下界 $\valQtwoBoundCancelc$ 相等，即对偶间隙为零。
 由命题~\ref{prop:cut}，所加的现任解割不改变该级最优值，故 $\valQtwoValueCancelc$ 是受限问题的全局最小值。
 \end{proof}
@@ -462,9 +462,9 @@ $\boldsymbol{\valQthreeNewPlans}$ 个 C 类用频装备，且这一数量是全�
 \begin{proof}
 可行性：CP-SAT 返回了一个含 $\valQthreeNewPlans$ 个位置的可行解，该解经独立校验器复核——
 每个新增计划的参数、边界、与既有计划以及彼此之间的零冲突全部通过（\valQthreeValidator{}）。
-最优性：CP-SAT 在状态 $\valQthreeCpsatStatus$ 下给出对偶界 $\valQthreeCpsatBound$；
+最优性：CP-SAT 在状态 \textsf{\valQthreeCpsatStatus} 下给出对偶界 $\valQthreeCpsatBound$；
 HiGHS 对同一模型的线性松弛最优值为 $\valQthreeLpValue$，故整数最优值 $\le\lfloor\valQthreeLpValue\rfloor=\valQthreeLpBound$；
-HiGHS MILP 亦以状态 $\valQthreeHighsStatus$ 给出界 $\valQthreeHighsBound$。三者与解值相等，间隙 $\valQthreeGap$。
+HiGHS MILP 亦以状态 \textsf{\valQthreeHighsStatus} 给出界 $\valQthreeHighsBound$。三者与解值相等，间隙 $\valQthreeGap$。
 \end{proof}
 
 安排这 $\valQthreeNewPlans$ 个新增计划后，时频资源利用率由 $\valQthreeUtilBefore\%$ 提高到 $\valQthreeUtilAfter\%$
@@ -600,7 +600,7 @@ $\valQfourCancelTotal$ 个}（$\valQfourCancelDelta$，降幅四分之一），�
 \end{table}
 
 表~\ref{tab:q4solver} 显示：撤销 A、B 两级为 $0$ 且状态 \textsf{OPTIMAL}（故“不撤销任何 A、B 类计划”在问题 4 中同样被证明可行且最优）；
-撤销 C 一级的值 $\valQfourValueCancelc$ 与证明下界 $\valQfourBoundCancelc$ 之间仍有间隙，状态 $\valQfourStatusCancelc$。
+撤销 C 一级的值 $\valQfourValueCancelc$ 与证明下界 $\valQfourBoundCancelc$ 之间仍有间隙，状态 \textsf{\valQfourStatusCancelc}。
 因此本文对问题 4 的表述是：\textbf{$\valQfourCancelTotal$ 是已知最好的可行方案，且严格优于问题 2 的 $\valQtwoCancelTotal$}；
 其真实最优值落在 $[\valQfourBoundCancelc,\ \valQfourValueCancelc]$ 之间。这里体现了现任解保持算法的价值：
 热启动提示的向量为 $\valQfourHintVector$，其第三个分量即提示解的撤销 C 数量，

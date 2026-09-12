@@ -56,7 +56,7 @@
 \begin{tikzpicture}[
   every node/.style={font=\small},
   box/.style={draw=ink!80,rounded corners=2pt,align=center,inner sep=4pt,
-              minimum height=1.15cm,text width=3.2cm},
+              minimum height=1.35cm,text width=3.2cm},
   data/.style={box,fill=ink!8},
   model/.style={box,fill=accent!12},
   check/.style={box,fill=black!6},
@@ -71,7 +71,7 @@
 % ---- row 2: resolution
 \node[model] (r2a) at (0,-2.9)    {动作集合 $O_i$\\单元格 AtMostOne 模型};
 \node[model] (r2b) at (4.1,-2.9)  {\textbf{问题 2}\\七级词典序 CP-SAT\\（现任解上界割）};
-\node[model] (r2c) at (8.2,-2.9)  {\textbf{问题 4}\\C 类增加“改间隔”动作};
+\node[model] (r2c) at (8.2,-2.9)  {\textbf{问题 4}\\C 类增加改间隔动作};
 \node[data]  (r2d) at (12.3,-2.9) {无冲突方案\\$\mathcal{S}_2$、$\mathcal{S}_4$};
 \draw[arr] (r2a)--(r2b); \draw[arr] (r2b)--(r2c); \draw[arr] (r2c)--(r2d);
 \draw[arr] (r1d.south) -- ++(0,-0.6) -| (r2a.north);

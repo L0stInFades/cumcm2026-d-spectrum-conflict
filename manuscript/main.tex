@@ -18,6 +18,9 @@
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
 \usepackage{listings}
 \usepackage{xurl}
+% GB/T 7714 numeric citations; without the package the .bst's author-year \bibitem
+% labels would be printed verbatim, so load it whenever it is available.
+\IfFileExists{gbt7714.sty}{\usepackage[numbers]{gbt7714}}{}
 \usepackage[colorlinks=true,linkcolor=ink,citecolor=ink,urlcolor=ink,pdfauthor={},pdftitle={时频冲突检测与消解}]{hyperref}
 
 \setCJKmainfont{Noto Serif CJK SC}[BoldFont={Noto Serif CJK SC Bold}]
