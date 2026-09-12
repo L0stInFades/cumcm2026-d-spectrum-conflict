@@ -259,7 +259,8 @@ def fig_schemes(ctx: StageContext, name: str, alternatives: dict[str, Any]) -> N
     ax.set_xticks(x, [f"方案 {n}" for n in names])
     ax.set_ylabel("被调整的计划数")
     ax.set_title("(a) 各目标方案的调整数量")
-    ax.legend(frameon=False, fontsize=7)
+    ax.set_ylim(0, float(bottom.max()) * 1.3)
+    ax.legend(frameon=False, fontsize=7, ncol=3, loc="upper left")
     ax = axes[1]
     amps = [alternatives[n]["canonical_vector"][6] / 10.0 for n in names]
     ax.bar(x, amps, color="#0072B2", width=0.6)
@@ -318,26 +319,32 @@ def fig_q4_comparison(
 
 
 def fig_bench_scaling(ctx: StageContext, scaling: list[dict[str, Any]]) -> None:
+    from matplotlib.ticker import NullFormatter
+
     fig, ax = plotting.new_figure(6.3, 3.0)
     ns = [r["n"] for r in scaling]
+    limit = max((r["cpsat_seconds"] for r in scaling), default=0.0)
     series = [
-        ("成对枚举检测", [r["pairwise_seconds"] for r in scaling], "#0072B2"),
-        ("分桶扫描线检测", [r["sweep_seconds"] for r in scaling], "#D55E00"),
-        ("单元格模型构建", [r["build_seconds"] for r in scaling], "#009E73"),
-        ("CP-SAT 消解求解", [r["cpsat_seconds"] for r in scaling], "#E69F00"),
+        ("成对枚举检测", [r["pairwise_seconds"] for r in scaling], "#0072B2", "o"),
+        ("分桶扫描线检测", [r["sweep_seconds"] for r in scaling], "#D55E00", "s"),
+        ("单元格模型构建", [r["build_seconds"] for r in scaling], "#009E73", "^"),
+        (
+            f"CP-SAT 消解（固定时限 {limit:.0f} s，到时返回可行解）",
+            [r["cpsat_seconds"] for r in scaling],
+            "#E69F00",
+            "D",
+        ),
     ]
-    for label, ys, color in series:
-        ax.plot(ns, ys, marker="o", markersize=4, color=color, label=label)
-        ax.annotate(
-            label, (ns[-1], ys[-1]), xytext=(4, 0), textcoords="offset points", fontsize=7, color=color, va="center"
-        )
+    for label, ys, color, marker in series:
+        ax.plot(ns, ys, marker=marker, markersize=4, color=color, label=label)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("计划数量 n（合成实例）")
     ax.set_ylabel("耗时 (s)")
     ax.set_xticks(ns, [str(n) for n in ns])
-    ax.legend(frameon=False, loc="upper left")
-    ax.set_xlim(ns[0] * 0.9, ns[-1] * 1.9)
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.legend(frameon=False, fontsize=7, loc="center left")
+    ax.set_xlim(ns[0] * 0.9, ns[-1] * 1.1)
     plotting.save(fig, ctx.out("figures", "fig_bench_scaling.pdf"))
 
 
@@ -362,7 +369,8 @@ def fig_sensitivity(ctx: StageContext, cases: list[dict[str, Any]]) -> None:
     ax.set_xlabel("最大平移幅度 (频段, 时间)")
     ax.set_ylabel("被调整/撤销的计划数")
     ax.set_title("(a) 调整与撤销数量")
-    ax.legend(frameon=False, fontsize=7)
+    ax.set_ylim(0, float((bottom + cancels).max()) * 1.35)
+    ax.legend(frameon=False, fontsize=7, ncol=2, loc="upper left")
     ax = axes[1]
     ax.bar(x, [r["amplitude"] for r in rows], color="#0072B2", width=0.65)
     for i, r in enumerate(rows):
