@@ -147,13 +147,20 @@ B--C 之间最多，达 $\valQoneConflictPairsBC$ 对）；(b) 冲突图的度�
 \subsection{无冲突约束的单元格编码}
 
 朴素的做法是对每一对可能冲突的 $(i,o)$、$(j,o')$ 写一条 $y_{i,o}+y_{j,o'}\le 1$。
-本实例中这样的约束多达 $10^7$ 量级，建模本身就不可行。本文改用\emph{单元格约束}：
+按表~\ref{tab:q2model} 的规模，需要枚举约 $\valQtwoInteractingPairs\times 32\times 32\approx 2\times 10^{6}$
+个四元组并生成同量级的约束，比下面单元格编码的 $\valQtwoRows$ 行高出近两个数量级，
+建模与传播的代价都不划算。本文改用\emph{单元格约束}：
+
+模型所涉及的单元全集要比第~\ref{sec:q1} 节的 $\mathcal{C}$ 大一些：动作会把计划推到原时间范围之外
+（时移最多到 $T_{\mathrm{end}}+\mathcal{T}$，问题 4 的间隔调整更远），因此令
+$T_{\max}=\max_{i,\,o\in O_i}e(P_i^{o})$ 并取 $\mathcal{C}_2=\{0,\dots,B-1\}\times\{0,\dots,T_{\max}-1\}$，
+以保证任意两个被选动作共享的单元一定落在 $\mathcal{C}_2$ 内。
 
 \begin{proposition}[单元格编码的精确性]\label{prop:exact}
 设 $R_{b,t}=\{(i,o):\ (b,t)\in U(P_i^{o})\}$ 为覆盖单元 $(b,t)$ 的全部（计划, 动作）对。
 在约束~\eqref{eq:exactlyone} 之下，“被选中的动作两两不冲突”等价于
 \begin{equation}\label{eq:atmostone}
-  \sum_{(i,o)\in R_{b,t}} y_{i,o}\ \le\ 1,\qquad \forall (b,t)\in\mathcal{C}.
+  \sum_{(i,o)\in R_{b,t}} y_{i,o}\ \le\ 1,\qquad \forall (b,t)\in\mathcal{C}_2.
 \end{equation}
 约束条数不超过单元总数，其中字面量总数为 $\sum_i\sum_{o\in O_i}|U(P_i^{o})|$。
 \end{proposition}
@@ -211,11 +218,17 @@ $\sum_{j>k}W_jU_j=W_{k+1}U_{k+1}+\sum_{j>k+1}W_jU_j<W_{k+1}(U_{k+1}+1)=W_k$）�
 命题~\ref{prop:weights} 给出一条\emph{独立}的求解路径：用一次单目标求解复核逐级求解的结果。本文两条路径都走，
 并把二者是否一致作为交叉验证证据（第~\ref{sec:indepcheck} 节）。
 
-\begin{proposition}[计算复杂性]\label{prop:nphard}
-即使只允许“保持”与“撤销”两种动作，问题~\eqref{eq:lexmin} 的第一层（最少撤销）也等价于在冲突图 $G$ 上求最大独立集
-（保留的计划集合必须是 $G$ 的独立集），因而是 NP-难的\cite{garey1979}。允许平移只会使问题更一般
-（每个顶点带一张候选位置表，属于列表装填型问题）。
+\begin{proposition}[受限族的计算复杂性]\label{prop:nphard}
+考察本问题的如下受限族：取 $\Phi=\mathcal{T}=0$（动作集合~\eqref{eq:options} 只剩 $\{\textsf{keep},\textsf{cancel}\}$）、
+$n_i=1$（使用序列退化为单个矩形），并允许频段总数 $B$ 随实例规模增长。此时冲突图 $G$ 恰是
+\emph{轴平行矩形相交图}，而以\textbf{总撤销数}为目标的最小化等价于在该图上求最大独立集，
+这已知是 NP-完全的\cite{fowler1981}（一般图上的对应结论见\cite{karp1972,garey1979}）。
+本文式~\eqref{eq:lexmin} 的第一层是它的\emph{按类别加权}版本（只计 A 类），允许平移则进一步推广为
+每个顶点带一张候选位置表的列表装填型问题。
 \end{proposition}
+
+需要说明的是：本文并不把该命题用作任何数值结论的依据，它只回答“为什么不去寻找多项式精确算法”。
+固定 $B=100$ 的单个实例当然谈不上渐近复杂性——上面的受限族让 $B$ 增长，正是为了使这一陈述有意义。
 
 这解释了为什么本文必须依靠成熟的组合优化求解器而非解析方法，也解释了为什么“证明最优”与“求得好解”
 需要分别报告：前者要求求解器闭合对偶间隙，后者只要求找到可行解。
@@ -261,6 +274,14 @@ $x^\ast\leftarrow x_0$ \textbf{若} $x_0$ 可行 \textbf{否则} $\varnothing$\q
 故凡状态为 \textsf{OPTIMAL} 的层级，其值仍是真正的全局最优；（ii）返回向量在词典序上\emph{永不劣于}任何已知可行解，
 因而“交叉验证的解比主解更好”这种自相矛盾不可能出现。热启动解取自仓库内经独立校验的现任解文件
 （其目标向量 $\valQtwoHintVector$，可行性检查 \valQtwoHintFeasible{}），使本文结果可由仓库直接复现（MDR-0008）。
+
+\paragraph{关于热启动的一个必要交代。}该现任解文件是\emph{更早一次运行}的解，其来源 run、代码版本与目标向量
+都记录在文件内；本轮不会用本轮的结果去覆盖它，否则“可复现”就成了循环论证。
+本轮的逐级搜索是否\emph{严格改进}了它，各问分别如实报告：问题 2 为“\valQtwoHintImproved{}”、
+问题 4 为“\valQfourHintImproved{}”。这一交代不影响任何最优性结论——
+由命题~\ref{prop:cut}，割不改变各级最优值，凡状态为 \textsf{OPTIMAL} 的层级，
+其值是该级的全局最优，与搜索从哪里出发无关；只有\emph{未证明最优}的层级才依赖起点，
+本文对这些层级本就只报“值 / 证明下界 / 状态”。
 
 求解器为 OR-Tools CP-SAT\cite{ortools2025}（$24$ 线程、固定随机种子、显式加入核心引导子求解器），
 各级时限 $[20,20,600,300,300,300,240]$ 秒，总用时 $\valQtwoCpsatSeconds$ s；
@@ -331,24 +352,54 @@ HiGHS 为对同一模型的独立建模；“Time limit reached”表示 HiGHS �
 \end{proof}
 
 \begin{corollary}[零撤销不可行]\label{cor:nozero}
-在不撤销任何 A、B 类计划的前提下，“一个计划都不撤销”是\emph{不可行}的——因为该情形对应第三级取值 $0$，
-而定理~\ref{thm:q2opt} 已证明该级最小值为 $\valQtwoValueCancelc>0$。
+（i）\emph{任何}无冲突消解方案都至少要撤销一个计划；
+（ii）在坚持不撤销任何 A、B 类计划的前提下，被撤销的 C 类计划数\emph{恰好最少}为 $\valQtwoValueCancelc$。
 \end{corollary}
+\begin{proof}
+（ii）即定理~\ref{thm:q2opt} 的第三级结论。（i）：若某方案一个计划都不撤销，则它的前三级取值为 $(0,0,0)$，
+特别地 $L_1=L_2=0$ 与 $L_3=0$；但定理~\ref{thm:q2opt} 已证明在 $L_1=L_2=0$ 之下 $L_3$ 的最小值为
+$\valQtwoValueCancelc>0$，矛盾。
+\end{proof}
+注意（i）是无条件的，而“至少撤销 $\valQtwoValueCancelc$ 个”不是：表~\ref{tab:q2schemes} 中允许撤销 A、B 类的读法
+可以用更少的撤销总数达到无冲突。
 
 对于调整各级与幅度级，求解器在给定预算内\emph{未能}闭合间隙（\valQtwoAllOptimal{}：并非各级均证明最优）。
-本文因此严格区分两类陈述：表~\ref{tab:q2table1} 的调整数量是\textbf{已知最好的可行方案}，
-其真实最优值落在表~\ref{tab:q2solver} 给出的 $[\underline{v}_k,\,v_k]$ 区间内；本文\textbf{不声称}它们全局最优。
-为判断这是预算不足还是已接近最优，本文另以数倍于表~\ref{tab:q2solver} 所列时限的预算对“调整 A”一级做过一次
-诊断性重解（该诊断不属于本次运行的阶段产物，故其数值不进入本文）：报告值\emph{未获改进}，
-证明下界仅微幅提高。这说明表~\ref{tab:q2table1} 的调整数量对求解预算不敏感，但对偶间隙确实较宽。
+本文因此严格区分两类陈述：表~\ref{tab:q2table1} 的调整数量是\textbf{已知最好的可行方案}，本文\textbf{不声称}它们全局最优。
+
+\paragraph{下界只在它成立的范围内成立。}逐级求解在第 $k$ 级是把前 $k-1$ 级\emph{固定为表中所报的值}之后再最小化的。
+因此表~\ref{tab:q2solver} 的下界 $\underline{v}_k$ 只对\textbf{第一个未闭合间隙的层级}（本文为“调整 A”）
+构成对词典序真优解相应分量的界，即该分量落在 $[\underline{v}_4,\,v_4]$ 内；
+\emph{其后各级}的 $\underline{v}_k$ 是“在 $L_4=v_4,\dots,L_{k-1}=v_{k-1}$ 这些附加等式之下”的下界——
+若真优解的 $L_4$ 严格小于 $v_4$，它根本不在那个受限可行域里，该下界对它没有约束力。
+本文在正文与摘要中一律按此措辞陈述，不把后续各级的区间说成真优解的区间。
+
+\paragraph{条件最优性（MDR-0012）。}把\emph{被撤销计划的集合}（而不仅是它们的个数）固定为表~\ref{tab:q2table1}
+所报告的那 $\valQtwoValueCancelc$ 个 C 类计划，再逐级最小化调整三级与幅度级，得到表~\ref{tab:q2conditional}。
+在这一受限问题上，“调整 A”一级的值与证明下界均为 $\valQtwoCondValueAdjusta$，状态 \textsf{\valQtwoCondStatusAdjusta}。
+于是可以作一个\emph{严格且诚实}的陈述：\textbf{在与本文方案相同的撤销集合之下，$\valQtwoAdjustA$ 个 A 类计划被调整已是最优}。
+必须强调这是受限问题的最优值，不是词典序真优解的分量——若换一个撤销集合，该值可能更小。
+
+\paragraph{一个与求解器无关的下界。}两个相互冲突的计划不可能都\emph{保持原样}，故任一无冲突方案中保持不变的计划集合
+是冲突图 $G$ 的独立集，于是
+\begin{equation}\label{eq:alpha}
+  \#\{\text{保持}\}\ \le\ \alpha(G),\qquad \#\{\text{被调整或被撤销}\}\ \ge\ N-\alpha(G),
+\end{equation}
+其中 $\alpha(G)=\valQoneMaxIndependentSet$（CP-SAT，状态 \textsf{\valQoneMaxIndependentSetStatus}），
+故任何方案至少要触动 $\valQoneMinTouched$ 个计划。本文方案触动了
+$\valQtwoAdjustTotal+\valQtwoCancelTotal$ 个，满足式~\eqref{eq:alpha}。该界只依赖冲突图，
+与消解模型、动作上限与求解器都无关，是本文唯一一个\emph{完全独立}的下界；它比 $\valQoneMinTouched$ 更紧的版本
+（团覆盖、列生成）未在本文实现，见第~\ref{sec:limits} 节。
+
 需要强调：由命题~\ref{prop:cut}，\emph{调整各级的不确定性不会影响定理~\ref{thm:q2opt}}，
 因为撤销三级的等式是在其自身证明最优之后才被固定的。
 
-\paragraph{为什么必须撤销这 $\valQtwoValueCancelc$ 个计划？}附录表~\ref{tab:q2cancel} 给出被撤销计划的局部环境：
-它们每一个都与多个计划冲突，且\emph{冲突邻居几乎全部是 A 类或 B 类}——
-而 A、B 类在词典序中享有更高的优先级，宁可让 C 类让路。这正是题目优先级条款的直接体现：
-撤销并非因为资源耗尽（占用率仅 $\valQoneOccupancyPercent\%$），而是因为在 $\pm 10\Delta f$、$\pm 5\Delta t$ 的局部邻域内
-这些 C 类计划无处可去，而把高优先级的邻居挪开又与优先级条款相悖。
+\paragraph{为什么必须撤销这 $\valQtwoValueCancelc$ 个计划？}附录表~\ref{tab:q2cancel} 给出被撤销计划的局部环境。
+原始冲突图的度\emph{不是}撤销的直接原因：其他计划平移之后，相关的邻域已经换了一个；表中确有邻居数只有 $1$ 的计划。
+真正的原因在表的最后一列——对每个被撤销的计划，逐一试遍它的全部合法单参数动作，
+\textbf{没有任何一个动作能使它与本方案的存留计划都不冲突}（该列全部为 $0$）。
+换句话说，撤销不是因为资源耗尽（占用率仅 $\valQoneOccupancyPercent\%$），也不是因为它本身冲突多，
+而是因为在 $\pm 10\Delta f$、$\pm 5\Delta t$ 的邻域内它\emph{相对于已经安排好的其余 $\valQtwoRemainingPlans$ 个计划}无处可去；
+而把高优先级的邻居挪开又与优先级条款相悖——表中被撤销计划的原始邻居里，A、B 类占了绝大多数。
 
 \subsection{目标方案的对照分析}
 \label{sec:q2schemes}
@@ -359,8 +410,10 @@ S（完全不含优先级，只看总量与幅度）、W（纯加权和，$w_A:w
 
 \begin{table}[htbp]
 \centering\small
-\caption{四种目标方案在问题 2 上的对照（每级时限 $30$ s，故其向量仅作定性对照，不作最优性声明）。
-方案 P 是唯一在问题 2 与问题 4 中都不撤销任何 A、B 类计划的方案。}\label{tab:q2schemes}
+\caption{四种目标方案在问题 2 上的对照。\textbf{方案 P 即正文主结果}（各级时限 $[20,20,600,300,300,300,240]$ s，
+撤销三级已证明最优，定理~\ref{thm:q2opt}）；T、S、W 每级时限 $30$ s，且都以当时已知的最好解作为现任解热启动
+（MDR-0013），故它们是\emph{在本文预算下}得到的可行点，不作最优性声明。表中“预算/用时”两列使这一差异对读者可见。}
+\label{tab:q2schemes}
 \resizebox{\linewidth}{!}{\input{generated/tables/tab_q2_schemes.tex}}
 \end{table}
 
@@ -369,9 +422,11 @@ S（完全不含优先级，只看总量与幅度）、W（纯加权和，$w_A:w
 （表~\ref{tab:q2schemes} 的“撤销 A/B/C”列）。
 题目明确要求“A 类用频装备优先级最高，B 类其次，C 类优先级最低，高优先级用频装备的用频计划应尽量保持”，
 在这一要求下，少撤销几个 C 类计划绝不足以补偿多撤销一个 A 类计划。
-纯加权方案 W 的撤销总数与 P 相同（$\valQtwoSchemeWCancelTotal$），却把其中一部分落在了 B 类上。
-因此方案 P 的选择不是任意的：\textbf{它是四种读法中唯一在问题 2 与问题 4 中都完全不触碰 A、B 类计划的方案}。
-图~\ref{fig:q2schemes} 以图形给出同一对照。
+纯加权方案 W 的撤销总数为 $\valQtwoSchemeWCancelTotal$。
+因此方案 P 的选择不是任意的：\textbf{在本文预算下得到的这四个可行方案中，只有 P 在问题 2 与问题 4 中都不撤销任何 A、B 类计划}。
+这是一个关于\emph{这四个具体方案}的陈述，不是关于四种读法各自最优解的陈述——后者需要把四个方案都解到最优，
+本文预算不允许；按 MDR-0013，四个方案之间已经交叉热启动并做过一轮修复，因此不会出现
+“某一行的解在另一行自己的目标下更好”这种自相矛盾。图~\ref{fig:q2schemes} 以图形给出同一对照。
 
 \paperfigure[0.94\linewidth]{fig_q2_schemes}{四种目标方案的对照。(a) 各方案下被调整的计划数（按类别堆叠）；
 (b) 归一化总调整幅度。方案 P（本文主方案）以较多的调整数量换取“完全不撤销 A、B 类计划”。}{fig:q2schemes}
@@ -399,9 +454,10 @@ S（完全不含优先级，只看总量与幅度）、W（纯加权和，$w_A:w
 
 \subsection{集合装填模型}
 
-按假设~\ref{as:pack}，资源区域为 $\mathcal{C}=\{0,\dots,B-1\}\times[0,T_{\mathrm{end}})$，
+按假设~\ref{as:pack}，资源区域记为 $\mathcal{R}=\{0,\dots,B-1\}\times[0,T_{\mathrm{end}})$
+（与第~\ref{sec:q2} 节的模型单元全集 $\mathcal{C}_2$ 区分：这里不允许越出 $T_{\mathrm{end}}$），
 $T_{\mathrm{end}}=\valQthreeHorizon$（问题 2 方案的最晚结束时刻）。
-记问题 2 存留计划占用的单元集合为 $\mathcal{O}=\bigcup_{i\in\mathcal{S}_2}U(P_i)$，自由单元 $\mathcal{F}=\mathcal{C}\setminus\mathcal{O}$。
+记问题 2 存留计划占用的单元集合为 $\mathcal{O}=\bigcup_{i\in\mathcal{S}_2}U(P_i)$，自由单元 $\mathcal{F}=\mathcal{R}\setminus\mathcal{O}$。
 一个新增 C 类计划由其频段起点 $f$ 与首次使用起点 $s$ 完全确定，占用单元集合
 \begin{equation}\label{eq:newcells}
   U_{f,s}=[f,f+w_C)\times\bigcup_{k=0}^{n_C-1}[\,s+k\pi_C,\ s+d_C+k\pi_C\,),\qquad
@@ -420,10 +476,12 @@ $T_{\mathrm{end}}=\valQthreeHorizon$（问题 2 方案的最晚结束时刻）�
 \end{equation}
 模型~\eqref{eq:pack} 是一个标准的集合装填问题\cite{padberg1973}。与命题~\ref{prop:exact} 同理，单元约束精确刻画了“新增计划彼此不冲突”，
 而 $U_{f,s}\subseteq\mathcal{F}$ 已保证“新增与既有不冲突”。本实例中 $|\mathcal{P}|=\valQthreeCandidates$，
-去重后的单元约束 $\valQthreeRows$ 条——模型规模比问题 2 小两个数量级，因而可以求到\emph{证明最优}。
+去重后的单元约束 $\valQthreeRows$ 条——变量数约为问题 2 的 $1/3$、约束行数约为 $1/8$
+（表~\ref{tab:q2model} 与表~\ref{tab:q3summary}），且不含词典序的多级固定，因而可以求到\emph{证明最优}。
 
 候选位置由一次向量化扫描生成：对每个频段起点 $f$，先求“该 $3$ 频段带上全部空闲的时刻”的布尔向量，
-再用长度为 $\valDataCellsC$ 的偏移模板做滑窗与运算，复杂度 $O(B\cdot T_{\mathrm{end}}\cdot d_Cn_C)$。
+再用长度为 $d_Cn_C=\valQthreeOffsets$ 的\emph{时间偏移}模板做滑窗与运算，
+复杂度 $O(B\cdot T_{\mathrm{end}}\cdot d_Cn_C)$（注意与每个计划占用的 $w_Cd_Cn_C=\valDataCellsC$ 个\emph{单元}相区别）。
 求解前先用“按时间、再按频段”的首次适配贪心得到一个可行解作为热启动（下界 $\valQthreeGreedy$）。
 
 \subsection{上界链}
@@ -441,7 +499,8 @@ $T_{\mathrm{end}}=\valQthreeHorizon$（问题 2 方案的最晚结束时刻）�
 该上界\emph{对解释 A 与解释 B 同时成立}，因为它只用到“平移不改变占用面积”。
 \end{proposition}
 
-进一步按频段逐条统计自由单元可得更紧的逐频段容量界 $\valQthreePerBandBound$；
+式~\eqref{eq:areabound} 与新增计划的单元集合~\eqref{eq:newcells}、候选集合~\eqref{eq:candidates} 一起，
+把"还能放多少"完全化为一个有限的组合问题。进一步按频段逐条统计自由单元可得更紧的逐频段容量界 $\valQthreePerBandBound$；
 若区域内没有任何既有计划，则上界为 $\valQthreeEmptyRegionBound$。这些是纯计数界，通常很松；
 真正紧的界来自组合搜索本身：CP-SAT 的对偶界与 HiGHS 对模型~\eqref{eq:pack} 的线性松弛。
 
@@ -493,9 +552,26 @@ C 类计划的周期为 $\pi_C=d_C+g_C=\valDataDurationC+\valDataGapC$，单次�
 
 引理~\ref{lem:tiling} 说明：\textbf{局部利用率可以达到 $100\%$，但前提是既有计划的边界与这一相位划分对齐}。
 因此“还能放多少”主要取决于既有布局的\emph{对齐程度}，而不取决于自由单元的\emph{总数}。
-本文在实验中观察到一个直接佐证：一个撤销更多计划（因而自由单元更多）的问题 2 方案，
-反而只能再安排更少的新增计划。这也意味着定理~\ref{thm:q3} 的 $\valQthreeNewPlans$ 是
-“\emph{在本文这一个问题 2 方案之上}的最大值”，而非跨所有无冲突方案的最大值——这一措辞上的限定必须保留。
+
+\paragraph{这一依赖有多大？用产物回答（MDR-0014）。}第~\ref{sec:q2schemes} 节的四个目标方案给出四个\emph{都合法}的
+问题 2 无冲突方案。在每一个之上跑同一个装填模型，得到表~\ref{tab:q3layouts}：
+可再安排的数量在 $\valQthreeLayoutMin$ 到 $\valQthreeLayoutMax$ 之间（相差 $\valQthreeLayoutSpreadPercent\%$），
+而对应的自由单元数只相差 $\valQthreeLayoutFreeSpreadPercent\%$——量级完全不同，这正是引理~\ref{lem:tiling} 所预言的：
+决定性因素是布局与相位划分的对齐，不是自由单元的总数。
+（反过来也要说清楚：若一个布局的占用集合是另一个的\emph{子集}，则可装填数必然单调不减；
+表~\ref{tab:q3layouts} 中的四个布局互不包含，因此不存在这种单调关系。）
+
+\begin{table}[htbp]
+\centering\small
+\caption{问题 3 的答案对“采用哪一个问题 2 方案”的依赖。四个方案均为无冲突方案且均通过独立校验；
+在每个方案的存留计划布局之上求解同一个模型~\eqref{eq:pack}。各方案的时间范围可能不同，故单列给出，
+不同布局的自由单元数不可直接相减。}\label{tab:q3layouts}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q3_layouts.tex}}
+\end{table}
+
+因此定理~\ref{thm:q3} 的 $\valQthreeNewPlans$ 是“\emph{在本文这一个问题 2 方案之上}的最大值”，
+而非跨所有无冲突方案的最大值——这一措辞上的限定必须保留。
+联合优化（同时选择问题 2 的方案与新增计划的布局）本文未做，见第~\ref{sec:limits} 节。
 
 \subsection{备选解释 B：允许既有计划重新布局}
 \label{sec:q3alt}

@@ -60,7 +60,6 @@ PASS = "通过"
 FAIL = "未通过"
 # incumbents of an earlier verified run, used only as warm starts (configs/hints/*.json carry their provenance)
 Q2_HINT = "configs/hints/q2_decisions.json"
-Q4_HINT = "configs/hints/q4_decisions.json"
 
 
 def _limit_list(limit: Any, n: int) -> list[float]:
@@ -557,6 +556,12 @@ def _run_resolution(
     ctx.number(f"{prefix}HintUsed", "是" if hint is not None else "否")
     ctx.number(f"{prefix}HintFeasible", PASS if hint_info.get("feasible") else FAIL)
     ctx.number(f"{prefix}HintVector", _vector_text(hint_info.get("vector")))
+    hint_vec = hint_info.get("vector")
+    ctx.number(
+        f"{prefix}HintImproved",
+        "未使用提示" if hint_vec is None else ("严格改进" if list(primary["vector"]) < list(hint_vec) else "未改进"),
+    )
+    ctx.number(f"{prefix}StartVector", _vector_text(hint_info.get("start_vector")))
     ctx.number(f"{prefix}Vector", _vector_text(primary["vector"]))
     ctx.number(f"{prefix}Levels", len(levels))
     for entry in highs["levels"]:

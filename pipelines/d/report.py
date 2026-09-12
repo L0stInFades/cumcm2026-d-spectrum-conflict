@@ -15,7 +15,7 @@ from forge import plotting
 from forge.context import StageContext
 from forge.runner import stage
 from forge.tex import tex_escape
-from pipelines.d.detect import overlapping_uses
+from pipelines.d.detect import overlapping_uses, plans_conflict
 from pipelines.d.plans import CATEGORIES, Plan, horizon, plan_from_record
 from pipelines.d.resolve import Limits, enumerate_options
 
@@ -510,20 +510,35 @@ def _adjustment_rows(plans: list[Plan], decisions: list[dict[str, Any]], with_ga
 
 
 def _cancelled_rows(
-    plans: list[Plan], decisions: list[dict[str, Any]], conflicts: list[dict[str, Any]], limits: Limits
+    plans: list[Plan],
+    decisions: list[dict[str, Any]],
+    conflicts: list[dict[str, Any]],
+    limits: Limits,
 ) -> list[list[Any]]:
-    """Why a plan was cancelled: its conflict degree, higher-priority neighbours and number of legal actions."""
+    """Why a plan was cancelled.
+
+    The original conflict degree is *not* the binding reason — after the other plans move, the relevant
+    neighbourhood is a different one. The last column therefore counts the plan's legal single-parameter
+    actions that would leave it conflict-free **against the reported solution**; it is that count being
+    zero, not the degree, that forces the cancellation."""
     by_id = {p.pid: p for p in plans}
     neighbours: dict[str, list[str]] = {p.pid: [] for p in plans}
     for rec in conflicts:
         neighbours[rec["id1"]].append(rec["id2"])
         neighbours[rec["id2"]].append(rec["id1"])
+    survivors = [plan_from_record(d["plan"]) for d in decisions if d.get("plan")]
     rows = []
     for dec in sorted(decisions, key=lambda d: d["pid"]):
         if dec["kind"] != "cancel":
             continue
         plan = by_id[dec["pid"]]
         nbrs = neighbours[plan.pid]
+        actions = [o for o in enumerate_options(plan, limits) if o.kind not in {"keep", "cancel"}]
+        free = 0
+        for opt in actions:
+            after = opt.apply(plan)
+            if after is not None and not any(plans_conflict(after, q) for q in survivors):
+                free += 1
         rows.append(
             [
                 plan.pid,
@@ -531,7 +546,8 @@ def _cancelled_rows(
                 plan.time_text(),
                 len(nbrs),
                 sum(1 for n in nbrs if by_id[n].cat in {"A", "B"}),
-                len(enumerate_options(plan, limits)) - 2,  # excluding keep and cancel
+                len(actions),
+                free,
             ]
         )
     return rows
@@ -605,6 +621,7 @@ def _solver_tables(ctx: StageContext, tag: str, rep: dict[str, Any]) -> None:
         ],
         align="lr",
     )
+    _conditional_table(ctx, tag, rep)
 
 
 @stage("tables", deps=REPORT_DEPS, description="Paper tables (booktabs .tex + CSV)")
@@ -649,15 +666,15 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         "tab_data",
         [
             "类别",
-            "装备数",
-            "频宽 w",
-            "时长 d",
-            "间隔 g",
-            "次数 n",
-            "周期 d+g",
-            "时间跨度",
-            "单计划单元数",
-            "该类单元合计",
+            "装备数/个",
+            "频宽 w/Δf",
+            "时长 d/Δt",
+            "间隔 g/Δt",
+            "次数 n/次",
+            "周期 (d+g)/Δt",
+            "时间跨度/Δt",
+            "单计划单元数/单元",
+            "该类单元合计/单元",
         ],
         data_rows,
         align="lrrrrrrrrr",
@@ -673,12 +690,14 @@ def tables(ctx: StageContext) -> dict[str, Any]:
                 f"{stats['plans_by_cat']['A']}/{stats['plans_by_cat']['B']}/{stats['plans_by_cat']['C']}",
             ],
             ["冲突对数", stats["pairs"]],
-            ["冲突的使用次对数", stats["use_pairs"]],
+            ["相交的使用次对数 / 参与冲突的使用次数 / 使用次总数",
+             f"{stats['use_pairs']} / {stats['uses_in_conflict']} / {stats['uses_total']}"],
             [
                 "卷入冲突的计划数（A/B/C）",
                 f"{stats['plans_involved']}（{stats['plans_involved_by_cat']['A']}/"
                 f"{stats['plans_involved_by_cat']['B']}/{stats['plans_involved_by_cat']['C']}）",
             ],
+            ["与任何计划都不冲突的孤立计划数", stats["isolated_plans"]],
             ["冲突图连通分量数（不少于 2 个节点）", stats["components"]],
             ["最大连通分量规模", stats["largest_component"]],
             ["最大度 / 平均度", f"{stats['max_degree']} / {stats['mean_degree']:.2f}"],
@@ -688,6 +707,11 @@ def tables(ctx: StageContext) -> dict[str, Any]:
                 f"{stats['cells_total']} / {stats['cells_occupied']} / {stats['cells_overlap']}",
             ],
             ["时间范围（最晚结束时刻，Δt）", stats["horizon"]],
+            [
+                "冲突图独立数 α(G)（状态）",
+                f"{stats['max_independent_set']['value']}（{stats['max_independent_set']['status']}）",
+            ],
+            ["由此得到的被触动计划数下界 n − α(G)", len(plans) - stats["max_independent_set"]["value"]],
         ],
         align="lr",
     )
@@ -743,6 +767,8 @@ def tables(ctx: StageContext) -> dict[str, Any]:
                 f"{v[3]}/{v[4]}/{v[5]}",
                 sum(v[3:6]),
                 f"{v[6] / 10:.1f}",
+                f"{alt.get('budget_seconds', 0):.0f}",
+                f"{alt['seconds']:.1f}",
                 "是" if alt["all_optimal"] else "否",
                 "通过" if alt["validator_ok"] else "未通过",
             ]
@@ -750,19 +776,19 @@ def tables(ctx: StageContext) -> dict[str, Any]:
     _write_table(
         ctx,
         "tab_q2_schemes",
-        ["目标方案", "撤销 A/B/C", "调整 A/B/C", "调整合计", "归一化幅度", "各级最优", "独立校验"],
+        ["目标方案", "撤销 A/B/C", "调整 A/B/C", "调整合计", "归一化幅度", "预算/s", "用时/s", "各级最优", "独立校验"],
         scheme_rows,
-        align="lrrrrcc",
+        align="lrrrrrrcc",
     )
     _solver_tables(ctx, "q2", q2)
     _write_table(
         ctx,
         "tab_q2_cancelled",
-        ["装备编号", "频段", "首次时间", "冲突邻居数", "其中 A/B 类", "可用平移动作数"],
+        ["装备编号", "频段", "首次时间", "原冲突邻居数", "其中 A/B 类", "合法平移动作数", "其中在本方案下无冲突"],
         _cancelled_rows(
             plans, q2_dec, conflicts, Limits(fmax=int(q2["limits"]["fmax"]), tmax=int(q2["limits"]["tmax"]))
         ),
-        align="lllrrr",
+        align="lllrrrr",
     )
 
     pack = ctx.dep_data("pack", "pack_report.json")
@@ -809,6 +835,38 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         align="rllrr",
         long=True,
     )
+    layouts = pack.get("layouts") or []
+    if layouts:
+        _write_table(
+            ctx,
+            "tab_q3_layouts",
+            [
+                "问题 2 方案",
+                "撤销数",
+                "存留计划数",
+                "时间范围/Δt",
+                "自由单元数",
+                "可再安排 C 类数",
+                "上界",
+                "CP-SAT 状态",
+                "独立校验",
+            ],
+            [
+                [
+                    r["scheme"],
+                    r["cancelled"],
+                    r["survivors"],
+                    r["horizon"],
+                    r["free_cells"],
+                    r["new_plans"],
+                    r["bound"],
+                    r["status"],
+                    "通过" if r["validator_ok"] else "未通过",
+                ]
+                for r in layouts
+            ],
+            align="lrrrrrrlc",
+        )
 
     q4 = ctx.dep_data("resolve_interval", "solver_report.json")
     q4_dec = ctx.dep_data("resolve_interval", "decisions.json")
@@ -846,6 +904,39 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         ["类别", "保留(问2)", "保留(问4)", "调整(问2)", "调整(问4)", "撤销(问2)", "撤销(问4)"],
         cmp_rows,
     )
+    try:
+        variant = ctx.dep_data("resolve_interval", "variant_uncapped.json")
+    except Exception:  # noqa: BLE001 - the variant solve is optional
+        variant = None
+    if variant:
+        _write_table(
+            ctx,
+            "tab_q4_variant",
+            ["模型", "动作数", "目标向量", "撤销合计", "调整合计", "最晚结束时刻/Δt", "用时/s", "独立校验"],
+            [
+                [
+                    "主模型：e_i ≤ T_end（不增加时频资源）",
+                    q4["model"]["vars"],
+                    _vector_text(q4["vector"]),
+                    sum(q4["vector"][0:3]),
+                    sum(q4["vector"][3:6]),
+                    q4["horizon_after"],
+                    f"{q4['primary']['seconds']:.0f}",
+                    "通过",
+                ],
+                [
+                    "对照：不设时间范围上限",
+                    variant["vars"],
+                    _vector_text(variant["vector"]),
+                    sum(variant["vector"][0:3]),
+                    sum(variant["vector"][3:6]),
+                    variant["horizon_after"],
+                    f"{variant['seconds']:.0f}",
+                    "通过" if variant["validator_ok"] else "未通过",
+                ],
+            ],
+            align="lrlrrrrc",
+        )
     _write_table(
         ctx,
         "tab_q4_adjustments",
@@ -867,21 +958,23 @@ def tables(ctx: StageContext) -> dict[str, Any]:
                     sum(v[3:6]),
                     f"{v[6] / 10:.1f}",
                     alt["shifts"]["gap"]["count"],
+                    f"{alt.get('budget_seconds', 0):.0f}",
+                    f"{alt['seconds']:.1f}",
                     "通过" if alt["validator_ok"] else "未通过",
                 ]
             )
     _write_table(
         ctx,
         "tab_q4_schemes",
-        ["目标方案", "撤销 A/B/C", "调整 A/B/C", "调整合计", "归一化幅度", "间隔调整数", "独立校验"],
+        ["目标方案", "撤销 A/B/C", "调整 A/B/C", "调整合计", "归一化幅度", "间隔调整数", "预算/s", "用时/s", "独立校验"],
         scheme_rows4,
-        align="lrrrrrc",
+        align="lrrrrrrrc",
     )
     _solver_tables(ctx, "q4", q4)
     _write_table(
         ctx,
         "tab_q4_cancelled",
-        ["装备编号", "频段", "首次时间", "冲突邻居数", "其中 A/B 类", "可用调整动作数"],
+        ["装备编号", "频段", "首次时间", "原冲突邻居数", "其中 A/B 类", "合法调整动作数", "其中在本方案下无冲突"],
         _cancelled_rows(
             plans,
             q4_dec,
@@ -893,7 +986,7 @@ def tables(ctx: StageContext) -> dict[str, Any]:
                 gap_categories=tuple(q4["limits"]["gap_categories"]),
             ),
         ),
-        align="lllrrr",
+        align="lllrrrr",
     )
 
     val_rows = []
@@ -923,21 +1016,23 @@ def tables(ctx: StageContext) -> dict[str, Any]:
     _write_table(
         ctx,
         "tab_bench_tiny",
-        ["实例", "计划数", "冲突对", "动作组合数", "穷举最优向量", "CP-SAT 向量", "一致", "穷举用时/s"],
+        ["实例", "计划数", "频段数", "冲突对", "动作组合数", "穷举最优向量", "撤销分量", "CP-SAT 向量", "一致", "穷举用时/s"],
         [
             [
                 r["instance"],
                 r["plans"],
+                r.get("bands", "-"),
                 r["conflicts"],
                 r["combinations"],
                 _vector_text(r["exhaustive_vector"]),
+                r.get("cancellations", 0),
                 _vector_text(r["cpsat_vector"]),
                 "是" if r["agree"] else "否",
                 f"{r['exhaustive_seconds']:.2f}",
             ]
             for r in tiny
         ],
-        align="rrrrllcr",
+        align="rrrrrlrlcr",
         long=True,
     )
     scaling = ctx.dep_data("bench", "scaling.json")
@@ -948,8 +1043,8 @@ def tables(ctx: StageContext) -> dict[str, Any]:
             "n",
             "时间范围",
             "冲突对",
-            "成对检测/s",
-            "扫描线/s",
+            "成对检测/s（中位数）",
+            "扫描线/s（中位数）",
             "变量数",
             "约束数",
             "建模/s",
