@@ -1,0 +1,40 @@
+{
+  "run_id": "20260912-212914-2b9c081",
+  "code_ref": {
+    "git_sha": "e2661b87f5ede1e1abe4db932c76af06b104248b",
+    "branch": "main",
+    "dirty": false
+  },
+  "files": {
+    "论文.pdf": {
+      "sha256": "4d278816e45df51dbe5f5716ec7040a7a0b7bc18c1cff6e42690e647d34a7f58",
+      "bytes": 2091574
+    },
+    "result1.xlsx": {
+      "sha256": "c5f987e6ef3f0e56735351af3bc08e63b34014310fefb657b779ab73a320f988",
+      "bytes": 10678
+    },
+    "result2.xlsx": {
+      "sha256": "2a27149f5850d45035621b5bca2d803d5a8d778a8b21a799104ce00b79cc3b6d",
+      "bytes": 7478
+    },
+    "result3.xlsx": {
+      "sha256": "ae13f9f69edc3d2478a6b9ed0831484769ce7158f7889347aacc6196c93f4156",
+      "bytes": 7689
+    },
+    "result4.xlsx": {
+      "sha256": "82def231bae6794330ccecba91c0b468a4602b30144821d358e0ca987790f375",
+      "bytes": 7420
+    },
+    "支撑材料.zip": {
+      "sha256": "43bb640c3940e4ce9e35f48d753e87f1b972dba7b49d9da13b8a8248f2a49c1e",
+      "bytes": 1697647
+    },
+    "AI工具使用详情.pdf": {
+      "sha256": "7d8279fa7426deaecc3275ad9dc05c533570d89a67211fd1ddd1f8e4d19a6f63",
+      "bytes": 109404
+    }
+  },
+  "qa_passed": true,
+  "created_at": "2026-09-12T21:45:34+00:00"
+}
