@@ -572,6 +572,11 @@ def _solver_tables(ctx: StageContext, tag: str, rep: dict[str, Any]) -> None:
                 f"{m['options_per_plan']['A']}/{m['options_per_plan']['B']}/{m['options_per_plan']['C']}",
             ],
             ["CP-SAT 词典序总用时/s", f"{rep['primary']['seconds']:.1f}"],
+            ["热启动现任解目标向量（MDR-0009）", _vector_text(rep.get("hint", {}).get("vector"))],
+            [
+                "词典序求解起点",
+                {"file": "仓库内现任解", "weighted": "分离权重解"}.get(rep.get("hint", {}).get("start_from"), "冷启动"),
+            ],
             ["各级均证明最优", "是" if rep.get("all_optimal") else "否"],
             ["HiGHS 交叉验证总用时/s", f"{rep['highs']['seconds']:.1f}"],
             ["HiGHS 证明最优的各级与 CP-SAT 一致", "是" if rep["highs_agree"] else "否"],
