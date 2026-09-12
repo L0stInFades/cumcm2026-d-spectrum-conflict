@@ -467,7 +467,38 @@ def _run_resolution(
             "validator_ok": bool(cond_valid["ok"]),
         }
         ctx.log.info("conditional", vector=cond["vector"], all_optimal=cond["all_optimal"])
-
+        # The restricted problem's feasible set is a subset of the unrestricted one, so a point found here
+        # is feasible there as well. When it is lexicographically better than the incumbent the unrestricted
+        # search reported, reporting the incumbent would mean knowingly publishing a dominated solution:
+        # adopt the restricted point instead and record that this happened.
+        cond_canonical = conditional["canonical_vector"]
+        adopted = bool(
+            cond["chosen"] and cond_valid["ok"] and cond_canonical and list(cond_canonical) < list(primary["vector"])
+        )
+        conditional["adopted"] = adopted
+        conditional["superseded_vector"] = list(primary["vector"]) if adopted else None
+        if adopted:
+            ctx.log.info("conditional.adopted", was=primary["vector"], now=cond_canonical)
+            primary = {**primary, "chosen": list(cond["chosen"]), "vector": list(cond_canonical)}
+            decisions = cond_decisions
+            table = table_from_decisions(decisions)
+            validation = validators.validate_resolution(
+                plans,
+                decisions,
+                fmax=limits.fmax,
+                tmax=limits.tmax,
+                gmax=limits.gmax,
+                gap_categories=limits.gap_categories,
+                horizon_cap=limits.horizon_cap,
+            )
+            if not validation["ok"]:
+                raise RuntimeError(f"adopted conditional solution failed validation: {validation['errors']}")
+    ctx.number(
+        f"{prefix}CondAdopted",
+        "未做条件求解" if not conditional else (PASS if conditional.get("adopted") else "未采用（主搜索解不劣）"),
+    )
+    if conditional.get("superseded_vector"):
+        ctx.number(f"{prefix}CondSuperseded", _vector_text(conditional["superseded_vector"]))
     shifts = _shift_stats(decisions)
     report = {
         "limits": limits.__dict__,
