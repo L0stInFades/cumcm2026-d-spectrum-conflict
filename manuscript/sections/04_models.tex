@@ -109,8 +109,8 @@ C 类数量最多（$\valDataPlansC$ 个）且使用次数最多（$\valDataUses
 
 从图论看，冲突图 $G$ 有 $\valQoneComponents$ 个规模不小于 $2$ 的连通分量，其规模为 $\valQoneLargestComponent$：
 \textbf{几乎所有卷入冲突的计划连成一片}。这一点对建模至关重要——它意味着不能把问题拆成若干独立的小块分别求解，
-必须在全局上一次性消解。同时 $G$ 很稀疏（密度 $\valQoneDensity$，平均度 $\valQoneMeanDegree$，最大度 $\valQoneMaxDegree$，
-共 $\valQoneTopDegreeCount$ 个装备达到（$\valQoneTopDegreeIds$，附录表~\ref{tab:q1deg}）），这提示“局部让路”的空间是存在的：
+必须在全局上一次性消解。同时 $G$ 很稀疏：密度 $\valQoneDensity$、平均度 $\valQoneMeanDegree$、最大度 $\valQoneMaxDegree$，
+且该最大度由 $\valQoneTopDegreeCount$ 个装备同时达到（$\valQoneTopDegreeIds$，附录表~\ref{tab:q1deg}）。这提示“局部让路”的空间是存在的：
 每个计划平均只需避开 $\valQoneMeanDegree$ 个对手。图~\ref{fig:q1gantt} 与图~\ref{fig:q1structure} 给出时频平面的全局图景与冲突结构。
 
 \paperfigure[0.88\linewidth]{fig_q1_gantt}{附件 1 中 $\valQonePlans$ 个用频计划在时频平面上的甘特图。
