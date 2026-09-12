@@ -850,7 +850,7 @@ def pack(ctx: StageContext) -> dict[str, Any]:
         best_rep: dict[str, Any] | None = None
         rep_trials: list[dict[str, Any]] = []
         for order, time_first in [
-            (o, tf) for o in ctx.param("repack_orders", ["area", "width"]) for tf in (False, True)
+            (o, tf) for o in ctx.param("repack_orders", ["area", "width", "span", "duty"]) for tf in (False, True)
         ]:
             repacked, _ = repack_existing(existing, horizon_t, order=str(order), time_first=bool(time_first))
             moved = sum(1 for a, b in zip(sorted(existing, key=lambda p: p.pid), repacked) if (a.f, a.s) != (b.f, b.s))

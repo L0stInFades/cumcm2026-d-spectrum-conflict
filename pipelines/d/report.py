@@ -80,9 +80,11 @@ def _legend(ax: Any, entries: list[tuple[str, str, str | None]], **kwargs: Any) 
 
     handles = [
         Patch(
-            facecolor=color if hatch is None else "none",
-            edgecolor="#000000" if hatch else "none",
-            hatch=hatch,
+            # colour "none" means the mark is drawn by its edge only (e.g. the black outline used for
+            # conflicting uses): give the swatch a white face and a black edge so that it is visible.
+            facecolor="white" if color == "none" else (color if hatch is None else "none"),
+            edgecolor="#000000" if (hatch or color == "none") else "none",
+            hatch=hatch or None,
             label=label,
         )
         for label, color, hatch in entries
