@@ -67,10 +67,20 @@ class Limits:
     gmax: int = 0
     gap_categories: tuple[str, ...] = ()
     allow_cancel: bool = True
+    horizon_cap: int = 0  # 0 = unrestricted; otherwise every surviving plan must end at or before the cap
 
 
 def enumerate_options(plan: Plan, limits: Limits) -> list[Option]:
-    """All legal actions of a plan under the limits (band interval inside [0,100), start >= 0, gap >= 1)."""
+    """All legal actions of a plan under the limits (band interval inside [0,100), start >= 0, gap >= 1).
+
+    When ``limits.horizon_cap`` is positive an action is legal only if the plan it produces ends at or
+    before the cap, i.e. the action consumes no time resource beyond the region already in use (MDR-0011).
+    """
+
+    def allowed(opt: Option) -> bool:
+        after = opt.apply(plan)
+        return not (limits.horizon_cap and after is not None and after.end > limits.horizon_cap)
+
     opts = [Option("keep")]
     for delta in range(-limits.fmax, limits.fmax + 1):
         if delta and plan.f + delta >= 0 and plan.f + delta + plan.w <= BANDS:
@@ -82,6 +92,7 @@ def enumerate_options(plan: Plan, limits: Limits) -> list[Option]:
         for delta in range(-limits.gmax, limits.gmax + 1):
             if delta and plan.g + delta >= 1:
                 opts.append(Option("gap", delta))
+    opts = [o for o in opts if o.kind == "keep" or allowed(o)]
     if limits.allow_cancel:
         opts.append(Option("cancel"))
     return opts
@@ -371,6 +382,7 @@ def solve_lexicographic_cpsat(
     time_limit: float | list[float] = 600.0,
     hint: list[int] | None = None,
     strength: Strengthening | None = None,
+    fix_vars: dict[int, int] | None = None,
 ) -> dict[str, Any]:
     """Minimise the levels in order with CP-SAT, fixing each level's value before the next.
 
@@ -380,7 +392,10 @@ def solve_lexicographic_cpsat(
     never return a value worse than the incumbent. When the solver only matches the incumbent, whichever of
     the two solutions is lexicographically smaller on the *remaining* levels is carried forward. A level that
     reaches its time limit continues from its best-found value (recorded with its bound), so the returned
-    vector is always feasible; ``all_optimal`` tells whether every level was proven."""
+    vector is always feasible; ``all_optimal`` tells whether every level was proven.
+
+    ``fix_vars`` pins individual variables to 0/1 before the search: it defines a *restricted* problem
+    (MDR-0012), so a bound proved under it bounds only that restriction, never the unrestricted optimum."""
     from ortools.sat.python import cp_model
 
     t0 = time.monotonic()
@@ -390,6 +405,8 @@ def solve_lexicographic_cpsat(
         limits = [float(x) for x in time_limit]
     limits += [limits[-1]] * (len(levels) - len(limits))
     cp, y = _cp_base(model, strength)
+    for v, val in (fix_vars or {}).items():
+        cp.Add(y[v] == int(val))
     incumbent: list[int] | None = list(hint) if hint is not None and hint_is_feasible(model, hint) else None
     if hint is not None:
         hinted = set(hint)

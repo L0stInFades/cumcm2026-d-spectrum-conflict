@@ -203,22 +203,35 @@ def free_positions(grid: np.ndarray, width: int, offsets: np.ndarray, *, first_o
     return np.array(rows, dtype=np.int64).reshape(-1, 2)
 
 
-def repack_existing(plans: list[Plan], horizon: int, bands: int = BANDS) -> tuple[list[Plan], np.ndarray]:
+ORDERS: dict[str, Any] = {
+    "area": lambda p: (-(p.w * p.d * p.n), -p.w, p.pid),
+    "width": lambda p: (-p.w, -(p.d * p.n), p.pid),
+    "span": lambda p: (-(p.d + (p.n - 1) * (p.d + p.g)), -p.w, p.pid),
+    "duty": lambda p: (-(p.w * p.d) / (p.d + p.g), -p.w, p.pid),
+}
+
+
+def repack_existing(
+    plans: list[Plan], horizon: int, bands: int = BANDS, order: str = "area", time_first: bool = False
+) -> tuple[list[Plan], np.ndarray]:
     """First-fit decreasing re-placement of every plan (MDR-0010, interpretation B).
 
     Each plan keeps ``w``, ``d``, ``g`` and ``n`` — only its band start and first-use start move, by an
     unrestricted amount — so the number of cells it occupies is unchanged. Plans are placed largest-first
-    at the lexicographically smallest free (f, s), which compacts them towards low bands and early times
-    and leaves a large contiguous free region. Raises when a plan cannot be placed at all."""
+    at the first free ``(f, s)`` in the scan order (``time_first`` scans ``(s, f)`` instead of ``(f, s)``),
+    which compacts them and leaves a large contiguous free region. Raises when a plan cannot be placed."""
     grid = np.zeros((bands, horizon), dtype=bool)
-    order = sorted(plans, key=lambda p: (-(p.w * p.d * p.n), -p.w, p.pid))
+    ordered = sorted(plans, key=ORDERS[order])
     placed: list[Plan] = []
-    for plan in order:
+    for plan in ordered:
         offsets = plan_offsets(plan)
-        spots = free_positions(grid, plan.w, offsets, first_only=True)
+        spots = free_positions(grid, plan.w, offsets, first_only=not time_first)
         if not len(spots):
             raise RuntimeError(f"first-fit decreasing could not place {plan.pid} within {bands}x{horizon}")
-        f, s = (int(v) for v in spots[0])
+        if time_first:
+            f, s = min(((int(a), int(b)) for a, b in spots), key=lambda fs: (fs[1], fs[0]))
+        else:
+            f, s = (int(v) for v in spots[0])
         grid[f : f + plan.w, s + offsets] = True
         placed.append(replace(plan, f=f, s=s))
     return sorted(placed, key=lambda p: p.pid), grid

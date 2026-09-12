@@ -78,6 +78,7 @@ def validate_resolution(
     tmax: int,
     gmax: int = 0,
     gap_categories: tuple[str, ...] = (),
+    horizon_cap: int = 0,
     reported_table: dict[str, dict[str, int]] | None = None,
     reported_vector: list[int] | None = None,
 ) -> dict[str, Any]:
@@ -138,6 +139,10 @@ def validate_resolution(
     undecided = sorted(set(by_id) - seen)
     if undecided:
         errors.append(f"{len(undecided)} plans without decision, e.g. {undecided[:5]}")
+    if horizon_cap:
+        late = [p.pid for p in survivors if p.end > horizon_cap]
+        if late:
+            errors.append(f"{len(late)} surviving plans end after the horizon cap {horizon_cap}, e.g. {late[:5]}")
     remaining = conflicts_by_cells(survivors)
     if remaining:
         errors.append(f"{len(remaining)} conflicts remain, e.g. {remaining[:5]}")

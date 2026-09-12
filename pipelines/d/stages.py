@@ -21,7 +21,7 @@ from forge.xlsx import write_result
 from pipelines.common.validation import run_validation
 from pipelines.d import validators
 from pipelines.d.contracts import INPUT_CONTRACTS
-from pipelines.d.detect import conflict_records, detect_bandsweep, detect_pairwise, graph_stats
+from pipelines.d.detect import conflict_records, detect_bandsweep, detect_pairwise, graph_stats, overlapping_uses
 from pipelines.d.pack import (
     C_TEMPLATE,
     candidate_placements,
@@ -63,8 +63,43 @@ Q2_HINT = "configs/hints/q2_decisions.json"
 Q4_HINT = "configs/hints/q4_decisions.json"
 
 
+def _limit_list(limit: Any, n: int) -> list[float]:
+    """Per-level time limits as a list of length ``n`` (a scalar is repeated, a short list is padded)."""
+    values = [float(limit)] * n if isinstance(limit, int | float) else [float(x) for x in limit]
+    return (values + [values[-1]] * n)[:n]
+
+
 def _vector_text(vec: list[int] | None) -> str:
     return "(" + ", ".join(str(v) for v in vec) + ")" if vec else "-"
+
+
+def _max_independent_set(
+    n: int, edges: list[tuple[int, int]], *, seed: int, time_limit: float = 60.0
+) -> dict[str, Any]:
+    """Independence number alpha(G) of the conflict graph, by CP-SAT.
+
+    Two conflicting plans can never both be kept unchanged, so the kept set is independent in G; hence
+    ``|keep| <= alpha(G)`` and at least ``n - alpha(G)`` plans must be adjusted or cancelled in *any*
+    conflict-free resolution. This bound uses only the conflict graph, so it is independent of the
+    resolution model and of the action limits (Proposition on the touched-plan bound)."""
+    from ortools.sat.python import cp_model
+
+    cp = cp_model.CpModel()
+    x = [cp.NewBoolVar(f"x{i}") for i in range(n)]
+    for i, j in edges:
+        cp.AddAtMostOne([x[i], x[j]])
+    cp.Maximize(sum(x))
+    solver = cp_model.CpSolver()
+    solver.parameters.random_seed = int(seed)
+    solver.parameters.num_workers = 8
+    solver.parameters.max_time_in_seconds = float(time_limit)
+    status = solver.Solve(cp)
+    return {
+        "value": int(round(solver.ObjectiveValue())) if status in (cp_model.OPTIMAL, cp_model.FEASIBLE) else 0,
+        "bound": float(solver.BestObjectiveBound()),
+        "status": solver.StatusName(status),
+        "members": [i for i in range(n) if status in (cp_model.OPTIMAL, cp_model.FEASIBLE) and solver.Value(x[i])],
+    }
 
 
 def _load_plans(ctx: StageContext) -> list[Plan]:
@@ -113,10 +148,25 @@ def detect(ctx: StageContext) -> dict[str, Any]:
     multiplicity = {
         str(k): int(sum(1 for r in records if r["use_pairs"] == k)) for k in sorted({r["use_pairs"] for r in records})
     }
+    by_id = {p.pid: p for p in plans}
+    conflict_uses: set[tuple[str, int]] = set()
+    for rec in records:
+        a, b = by_id[rec["id1"]], by_id[rec["id2"]]
+        for k, m in overlapping_uses(a, b):
+            conflict_uses.add((a.pid, k))
+            conflict_uses.add((b.pid, m))
+    alpha = _max_independent_set(len(plans), [(i, j) for i, j in pairs], seed=ctx.seed("detect-mis"))
+    top_degree_max = max((r["degree"] for r in stats["top_degree"]), default=0)
+    top_degree_ids = [str(r["pid"]) for r in stats["top_degree"] if r["degree"] == top_degree_max]
     stats.update(
         {
             "use_pairs": int(use_pairs),
             "use_pair_multiplicity": multiplicity,
+            "uses_total": int(sum(p.n for p in plans)),
+            "uses_in_conflict": len(conflict_uses),
+            "isolated_plans": int(len(plans) - stats["plans_involved"]),
+            "top_degree_ids": top_degree_ids,
+            "max_independent_set": alpha,
             "horizon": int(horizon_t),
             "cells_total": int(counts.size),
             "cells_occupied": int((counts >= 1).sum()),
@@ -146,6 +196,9 @@ def detect(ctx: StageContext) -> dict[str, Any]:
     ctx.number("QoneMeanDegree", stats["mean_degree"], ".2f")
     ctx.number("QoneDensity", stats["density"], ".4f")
     ctx.number("QoneUsePairs", use_pairs)
+    ctx.number("QoneUsesTotal", stats["uses_total"])
+    ctx.number("QoneConflictUses", stats["uses_in_conflict"])
+    ctx.number("QoneIsolatedPlans", stats["isolated_plans"])
     ctx.number("QoneHorizon", horizon_t)
     ctx.number("QoneCellsTotal", stats["cells_total"])
     ctx.number("QoneCellsOccupied", stats["cells_occupied"])
@@ -155,6 +208,11 @@ def detect(ctx: StageContext) -> dict[str, Any]:
     ctx.number("QoneSweepMs", 1000 * t_sweep, ".0f")
     ctx.number("QoneValidator", PASS)
     ctx.number("QoneTopDegreeId", stats["top_degree"][0]["pid"] if stats["top_degree"] else "-")
+    ctx.number("QoneTopDegreeIds", "、".join(top_degree_ids))
+    ctx.number("QoneTopDegreeCount", len(top_degree_ids))
+    ctx.number("QoneMaxIndependentSet", alpha["value"])
+    ctx.number("QoneMaxIndependentSetStatus", alpha["status"])
+    ctx.number("QoneMinTouched", len(plans) - alpha["value"])
     ctx.log.info("detect.done", pairs=stats["pairs"], by_pair=stats["by_pair"], seconds=t_pairwise)
     return {"pairs": stats["pairs"], "by_pair": stats["by_pair"], "use_pairs": use_pairs, "validator_ok": True}
 
@@ -288,6 +346,7 @@ def _run_resolution(
         tmax=limits.tmax,
         gmax=limits.gmax,
         gap_categories=limits.gap_categories,
+        horizon_cap=limits.horizon_cap,
         reported_table=table,
         reported_vector=primary["vector"],
     )
@@ -295,21 +354,21 @@ def _run_resolution(
         raise RuntimeError(f"independent validation failed: {validation['errors']}")
     survivors = [plan_from_record(d["plan"]) for d in decisions if d["plan"] is not None]
 
+    # --- objective schemes (MDR-0003). Every scheme gets the same per-level budget, and every scheme is
+    # warm-started from the lexicographically best solution known for *its own* levels among all solutions
+    # found so far (MDR-0013). With the incumbent cut of MDR-0009 this makes the reported vector of each
+    # scheme at least as good as every other scheme's solution evaluated under it, so no scheme can be
+    # left reporting a point that another row of the same table already dominates.
+    scheme_names = ("P", "T", "S", "W")
     alternatives: dict[str, Any] = {}
-    for name in ("P", "T", "S", "W"):
-        if name == "P":
-            res, chosen = primary, primary["chosen"]
-        else:
-            res = solve_lexicographic_cpsat(
-                model,
-                scheme_levels(name, model),
-                seed=seed,
-                workers=workers,
-                time_limit=alt_limit,
-                hint=primary["chosen"],
-                strength=strength,
-            )
-            chosen = res["chosen"]
+    alt_decisions_out: dict[str, Any] = {}
+    pool: list[list[int]] = [list(primary["chosen"])]
+
+    def _best_for(name: str) -> list[int]:
+        lv = scheme_levels(name, model)
+        return min(pool, key=lambda c: evaluate(model, c, lv))
+
+    def _record(name: str, res: dict[str, Any], chosen: list[int] | None, budget: float) -> None:
         alt_decisions = decisions_from_choice(model, chosen) if chosen else []
         alt_valid = (
             validators.validate_resolution(
@@ -319,6 +378,7 @@ def _run_resolution(
                 tmax=limits.tmax,
                 gmax=limits.gmax,
                 gap_categories=limits.gap_categories,
+                horizon_cap=limits.horizon_cap,
             )
             if chosen
             else {"ok": False}
@@ -329,13 +389,85 @@ def _run_resolution(
             "table": table_from_decisions(alt_decisions) if chosen else None,
             "all_optimal": res["all_optimal"],
             "levels": res["levels"],
+            "n_levels": len(scheme_levels(name, model)),
             "seconds": res["seconds"],
+            "budget_seconds": budget,
             "validator_ok": bool(alt_valid["ok"]),
             "shifts": _shift_stats(alt_decisions),
         }
+        alt_decisions_out[name] = alt_decisions
         ctx.log.info(
             "alternative", scheme=name, vector=alternatives[name]["canonical_vector"], optimal=res["all_optimal"]
         )
+
+    for name in scheme_names:
+        if name == "P":
+            _record("P", primary, primary["chosen"], sum(_limit_list(level_limits, len(levels))))
+            continue
+        lv = scheme_levels(name, model)
+        res = solve_lexicographic_cpsat(
+            model, lv, seed=seed, workers=workers, time_limit=alt_limit, hint=_best_for(name), strength=strength
+        )
+        if res["chosen"]:
+            pool.append(list(res["chosen"]))
+        _record(name, res, res["chosen"], alt_limit * len(lv))
+    # repair round: any scheme whose reported point is beaten by a solution found later is re-solved from it
+    for name in scheme_names[1:]:
+        lv = scheme_levels(name, model)
+        best = _best_for(name)
+        if evaluate(model, best, lv) < list(alternatives[name]["scheme_vector"]):
+            res = solve_lexicographic_cpsat(
+                model, lv, seed=seed, workers=workers, time_limit=alt_limit, hint=best, strength=strength
+            )
+            if res["chosen"]:
+                pool.append(list(res["chosen"]))
+            _record(name, res, res["chosen"], alternatives[name]["budget_seconds"] + alt_limit * len(lv))
+            ctx.log.info("alternative.repaired", scheme=name, vector=alternatives[name]["canonical_vector"])
+
+    # --- conditional optimality (MDR-0012). Fixing the *set* of cancelled plans to the one reported above
+    # turns the remaining levels into a restricted problem that CP-SAT can close; a bound proved here bounds
+    # the restriction only, never the unrestricted lexicographic optimum.
+    conditional: dict[str, Any] = {}
+    cond_limits = ctx.param("conditional_time_limits", None)
+    if cond_limits:
+        fix_vars: dict[int, int] = {}
+        for i, chosen_v in enumerate(primary["chosen"]):
+            cancel_v = next(v for v in model.plan_vars[i] if model.option_of(v).kind == "cancel")
+            fix_vars[cancel_v] = int(chosen_v == cancel_v)
+        cond = solve_lexicographic_cpsat(
+            model,
+            levels[3:],
+            seed=seed,
+            workers=workers,
+            time_limit=[float(x) for x in cond_limits],
+            hint=primary["chosen"],
+            strength=strength,
+            fix_vars=fix_vars,
+        )
+        cond_decisions = decisions_from_choice(model, cond["chosen"]) if cond["chosen"] else []
+        cond_valid = (
+            validators.validate_resolution(
+                plans,
+                cond_decisions,
+                fmax=limits.fmax,
+                tmax=limits.tmax,
+                gmax=limits.gmax,
+                gap_categories=limits.gap_categories,
+                horizon_cap=limits.horizon_cap,
+            )
+            if cond_decisions
+            else {"ok": False}
+        )
+        conditional = {
+            "fixed_cancelled": sorted(d["pid"] for d in decisions if d["kind"] == "cancel"),
+            "levels": cond["levels"],
+            "vector": cond["vector"],
+            "canonical_vector": evaluate(model, cond["chosen"], levels) if cond["chosen"] else None,
+            "all_optimal": cond["all_optimal"],
+            "seconds": cond["seconds"],
+            "validator_ok": bool(cond_valid["ok"]),
+        }
+        ctx.log.info("conditional", vector=cond["vector"], all_optimal=cond["all_optimal"])
 
     shifts = _shift_stats(decisions)
     report = {
@@ -368,11 +500,13 @@ def _run_resolution(
         "shifts": shifts,
         "amplitude_normalised": primary["vector"][-1] / 10.0,
         "horizon_after": horizon(survivors),
+        "conditional": conditional,
     }
     ctx.write_json("decisions.json", decisions)
     ctx.write_json("resolved_plans.json", _records(survivors))
     ctx.write_json("solver_report.json", report)
     ctx.write_json("alternatives.json", alternatives)
+    ctx.write_json("alternative_decisions.json", alt_decisions_out)
     ctx.write_json("validation_report.json", validation)
 
     for c in CATEGORIES:
@@ -382,6 +516,8 @@ def _run_resolution(
     ctx.number(f"{prefix}KeepTotal", sum(table[c]["keep"] for c in CATEGORIES))
     ctx.number(f"{prefix}AdjustTotal", sum(table[c]["adjust"] for c in CATEGORIES))
     ctx.number(f"{prefix}CancelTotal", sum(table[c]["cancel"] for c in CATEGORIES))
+    ctx.number(f"{prefix}RemainingPlans", len(survivors))
+    ctx.number(f"{prefix}HorizonCap", limits.horizon_cap if limits.horizon_cap else "无")
     ctx.number(f"{prefix}FreqShifted", shifts["freq"]["count"])
     ctx.number(f"{prefix}TimeShifted", shifts["time"]["count"])
     ctx.number(f"{prefix}GapChanged", shifts["gap"]["count"])
@@ -428,11 +564,23 @@ def _run_resolution(
             ctx.number(f"{prefix}LpBound{entry['level'].capitalize()}", entry["lp_value"], ".2f")
     for name, alt in alternatives.items():
         vec = alt["canonical_vector"]
+        ctx.number(f"{prefix}Scheme{name}Seconds", alt["seconds"], ".1f")
+        ctx.number(f"{prefix}Scheme{name}Budget", alt["budget_seconds"], ".0f")
         if vec is not None:
             ctx.number(f"{prefix}Scheme{name}AdjustTotal", sum(vec[3:6]))
             ctx.number(f"{prefix}Scheme{name}CancelTotal", sum(vec[0:3]))
             ctx.number(f"{prefix}Scheme{name}Amplitude", vec[6] / 10.0, ".1f")
             ctx.number(f"{prefix}Scheme{name}AdjustA", vec[3])
+    if conditional:
+        for entry in conditional["levels"]:
+            key = entry["level"].capitalize()
+            ctx.number(f"{prefix}CondValue{key}", entry.get("value", "-"))
+            ctx.number(f"{prefix}CondBound{key}", math.ceil(entry.get("bound", 0) - 1e-6) if "bound" in entry else "-")
+            ctx.number(f"{prefix}CondStatus{key}", entry.get("status", "-"))
+        ctx.number(f"{prefix}CondAllOptimal", PASS if conditional["all_optimal"] else FAIL)
+        ctx.number(f"{prefix}CondSeconds", conditional["seconds"], ".0f")
+        ctx.number(f"{prefix}CondCancelled", len(conditional["fixed_cancelled"]))
+        ctx.number(f"{prefix}CondValidator", PASS if conditional["validator_ok"] else FAIL)
     return {
         "vector": primary["vector"],
         "table": table,
@@ -444,6 +592,7 @@ def _run_resolution(
         "cpsat_seconds": primary["seconds"],
         "highs_seconds": highs["seconds"],
         "horizon_after": report["horizon_after"],
+        "conditional_all_optimal": conditional.get("all_optimal"),
     }
 
 
@@ -461,13 +610,77 @@ def resolve(ctx: StageContext) -> dict[str, Any]:
 )
 def resolve_interval(ctx: StageContext) -> dict[str, Any]:
     plans = _plans(ctx.dep_data("detect", "plans.json"))
+    # "no extra time-frequency resource" (MDR-0011): the resource region is the one the original plans
+    # already span, [0,100) x [0,T_end); an action that pushes a plan's last use past T_end is illegal.
+    cap = int(ctx.param("horizon_cap", horizon(plans)))
     limits = Limits(
         fmax=int(ctx.param("fmax", Q4_LIMITS.fmax)),
         tmax=int(ctx.param("tmax", Q4_LIMITS.tmax)),
         gmax=int(ctx.param("gmax", Q4_LIMITS.gmax)),
         gap_categories=("C",),
+        horizon_cap=cap,
     )
-    return _run_resolution(ctx, plans, limits, "Qfour", default_hint=Q4_HINT)
+    out = _run_resolution(ctx, plans, limits, "Qfour", default_hint=Q2_HINT)
+    # Unrestricted variant (MDR-0011): the same action set without the cap, warm-started from the capped
+    # solution. Because the capped solution is feasible there too, the incumbent cut of MDR-0009 makes the
+    # variant's reported vector no worse than the capped one; whether it is strictly better answers
+    # "does the cap cost anything?" without leaving the run.
+    free_limits = ctx.param("variant_time_limits", None)
+    if free_limits:
+        seed = ctx.seed("Qfour-uncapped")
+        open_limits = Limits(fmax=limits.fmax, tmax=limits.tmax, gmax=limits.gmax, gap_categories=("C",))
+        options = [enumerate_options(p, open_limits) for p in plans]
+        model = build_cell_model(plans, options)
+        levels = canonical_levels(model)
+        decisions = json.loads(ctx.out("decisions.json").read_text(encoding="utf-8"))
+        hint = hint_from_decisions(model, decisions)
+        res = solve_lexicographic_cpsat(
+            model,
+            levels,
+            seed=seed,
+            workers=int(ctx.param("workers", 8)),
+            time_limit=[float(x) for x in free_limits],
+            hint=hint,
+            strength=strengthen(model),
+        )
+        var_decisions = decisions_from_choice(model, res["chosen"]) if res["chosen"] else []
+        var_valid = (
+            validators.validate_resolution(
+                plans, var_decisions, fmax=limits.fmax, tmax=limits.tmax, gmax=limits.gmax, gap_categories=("C",)
+            )
+            if var_decisions
+            else {"ok": False}
+        )
+        survivors = [plan_from_record(d["plan"]) for d in var_decisions if d["plan"] is not None]
+        variant = {
+            "limits": open_limits.__dict__,
+            "vector": res["vector"],
+            "levels": res["levels"],
+            "table": table_from_decisions(var_decisions) if var_decisions else None,
+            "all_optimal": res["all_optimal"],
+            "seconds": res["seconds"],
+            "vars": model.n_vars,
+            "rows": len(model.rows),
+            "horizon_after": horizon(survivors),
+            "validator_ok": bool(var_valid["ok"]),
+            "strictly_better": list(res["vector"]) < list(out["vector"]),
+            "same_as_capped": list(res["vector"]) == list(out["vector"]),
+        }
+        if not var_valid["ok"]:
+            raise RuntimeError(f"unrestricted Q4 variant failed validation: {var_valid['errors']}")
+        ctx.write_json("variant_uncapped.json", variant)
+        ctx.number("QfourFreeVector", _vector_text(res["vector"]))
+        ctx.number("QfourFreeCancelTotal", sum(res["vector"][0:3]))
+        ctx.number("QfourFreeAdjustTotal", sum(res["vector"][3:6]))
+        ctx.number("QfourFreeHorizon", variant["horizon_after"])
+        ctx.number("QfourFreeVars", model.n_vars)
+        ctx.number("QfourFreeSeconds", res["seconds"], ".0f")
+        ctx.number("QfourFreeStrictlyBetter", PASS if variant["strictly_better"] else FAIL)
+        ctx.number("QfourFreeSameAsCapped", PASS if variant["same_as_capped"] else FAIL)
+        ctx.number("QfourFreeValidator", PASS)
+        ctx.log.info("q4.variant", vector=res["vector"], horizon=variant["horizon_after"])
+        out["variant_vector"] = res["vector"]
+    return out
 
 
 @stage(
@@ -626,41 +839,114 @@ def pack(ctx: StageContext) -> dict[str, Any]:
     # MDR-0010 interpretation B: the existing plans may themselves be shifted by an unrestricted amount.
     # A first-fit-decreasing re-placement is one feasible layout, so the number it admits is a valid lower
     # bound on that interpretation's optimum; the free-cell capacity bound is a valid upper bound for both
-    # interpretations, because shifting never changes how many cells a plan occupies.
+    # interpretations, because shifting never changes how many cells a plan occupies. Several construction
+    # orders are tried and the best is kept — each is feasible, so the maximum is still a valid lower bound.
     if bool(ctx.param("repack", True)):
-        repacked, _ = repack_existing(existing, horizon_t)
-        moved = sum(1 for a, b in zip(sorted(existing, key=lambda p: p.pid), repacked) if (a.f, a.s) != (b.f, b.s))
-        rep = _pack_once(
-            ctx,
-            repacked,
-            horizon_t,
-            tag="repack",
-            time_limit=float(ctx.param("repack_time_limit", 300)),
-            mip_limit=0,
-            lp_limit=float(ctx.param("repack_lp_time_limit", 120)),
-        )
-        params_kept = all(
-            (a.w, a.d, a.g, a.n) == (b.w, b.d, b.g, b.n)
-            for a, b in zip(sorted(existing, key=lambda p: p.pid), repacked)
-        )
-        contained = all(0 <= p.f and p.f_end <= 100 and p.s >= 0 and p.end <= horizon_t for p in repacked)
-        if not params_kept or not contained or len(repacked) != len(existing):
-            raise RuntimeError("repack changed a plan parameter, dropped a plan, or left the resource region")
+        best_rep: dict[str, Any] | None = None
+        rep_trials: list[dict[str, Any]] = []
+        for order, time_first in [
+            (o, tf) for o in ctx.param("repack_orders", ["area", "width"]) for tf in (False, True)
+        ]:
+            repacked, _ = repack_existing(existing, horizon_t, order=str(order), time_first=bool(time_first))
+            moved = sum(1 for a, b in zip(sorted(existing, key=lambda p: p.pid), repacked) if (a.f, a.s) != (b.f, b.s))
+            params_kept = all(
+                (a.w, a.d, a.g, a.n) == (b.w, b.d, b.g, b.n)
+                for a, b in zip(sorted(existing, key=lambda p: p.pid), repacked)
+            )
+            contained = all(0 <= p.f and p.f_end <= 100 and p.s >= 0 and p.end <= horizon_t for p in repacked)
+            if not params_kept or not contained or len(repacked) != len(existing):
+                raise RuntimeError("repack changed a plan parameter, dropped a plan, or left the resource region")
+            trial = _pack_once(
+                ctx,
+                repacked,
+                horizon_t,
+                tag=f"repack-{order}-{'t' if time_first else 'f'}",
+                time_limit=float(ctx.param("repack_time_limit", 300)),
+                mip_limit=0,
+                lp_limit=0,
+            )
+            trial["order"], trial["time_first"], trial["existing_moved"] = str(order), bool(time_first), moved
+            trial["params_kept"] = params_kept
+            trial["repacked"] = _records(repacked)
+            rep_trials.append({k: v for k, v in trial.items() if k not in {"new_plans", "free_by_band", "repacked"}})
+            if best_rep is None or trial["value"] > best_rep["value"]:
+                best_rep = trial
+        rep = best_rep
+        assert rep is not None
         alternatives["repack"] = {
-            k: v for k, v in rep.items() if k not in {"new_plans", "free_by_band", "validation"}
-        } | {"existing_moved": moved, "params_kept": params_kept}
-        ctx.write_json("repack_plans.json", {"existing": _records(repacked), "new": rep["new_plans"]})
-        ctx.log.info("pack.repack", moved=moved, new_plans=rep["value"], bound=rep["bounds"]["free_cells"])
+            k: v for k, v in rep.items() if k not in {"new_plans", "free_by_band", "validation", "repacked"}
+        } | {"trials": rep_trials, "n_trials": len(rep_trials)}
+        ctx.write_json("repack_plans.json", {"existing": rep["repacked"], "new": rep["new_plans"]})
+        ctx.log.info("pack.repack", order=rep["order"], moved=rep["existing_moved"], new_plans=rep["value"])
         ctx.number("QthreeAltRepackNewPlans", rep["value"])
         ctx.number("QthreeAltRepackBound", rep["bounds"]["free_cells"])
-        ctx.number("QthreeAltRepackMoved", moved)
+        ctx.number("QthreeAltRepackMoved", rep["existing_moved"])
         ctx.number("QthreeAltRepackStatus", rep["cpsat"]["status"])
         ctx.number("QthreeAltRepackGreedy", rep["greedy"])
+        ctx.number("QthreeAltRepackTrials", len(rep_trials))
+        ctx.number("QthreeAltRepackWorst", min(t["value"] for t in rep_trials))
+        ctx.number("QthreeAltRepackUtil", 100 * rep["utilisation_after"], ".1f")
         ctx.number("QthreeAltRepackValidator", PASS)
+    # Layout sensitivity (MDR-0014): the same packing model on each of the four objective schemes'
+    # conflict-free layouts. All four are legitimate answers to Problem 2, so the spread quantifies how
+    # conditional Q3's number is on *which* Problem-2 solution it is built upon.
+    layout_rows: list[dict[str, Any]] = []
+    if bool(ctx.param("layouts", True)):
+        alt_decisions = ctx.dep_data("resolve", "alternative_decisions.json")
+        for name, decs in sorted(alt_decisions.items()):
+            survivors = [plan_from_record(d["plan"]) for d in decs if d.get("plan")]
+            if not survivors:
+                continue
+            h = horizon(survivors)
+            res = _pack_once(
+                ctx,
+                survivors,
+                h,
+                tag=f"layout-{name}",
+                time_limit=float(ctx.param("layout_time_limit", 120)),
+                mip_limit=0,
+                lp_limit=0,
+            )
+            layout_rows.append(
+                {
+                    "scheme": name,
+                    "survivors": len(survivors),
+                    "cancelled": 150 - len(survivors),
+                    "horizon": h,
+                    "free_cells": res["free_cells"],
+                    "new_plans": res["value"],
+                    "bound": res["upper_bound"],
+                    "status": res["cpsat"]["status"],
+                    "optimal": res["optimal"],
+                    "validator_ok": bool(res["validation"]["ok"]),
+                }
+            )
+            ctx.log.info("pack.layout", scheme=name, free=res["free_cells"], new_plans=res["value"])
+        ctx.write_json("layouts.json", layout_rows)
+        if layout_rows:
+            ctx.number("QthreeLayoutCases", len(layout_rows))
+            ctx.number("QthreeLayoutMin", min(r["new_plans"] for r in layout_rows))
+            ctx.number("QthreeLayoutMax", max(r["new_plans"] for r in layout_rows))
+            ctx.number(
+                "QthreeLayoutSpreadPercent",
+                100.0
+                * (max(r["new_plans"] for r in layout_rows) / max(min(r["new_plans"] for r in layout_rows), 1) - 1),
+                ".0f",
+            )
+            ctx.number("QthreeLayoutFreeMin", min(r["free_cells"] for r in layout_rows))
+            ctx.number("QthreeLayoutFreeMax", max(r["free_cells"] for r in layout_rows))
+            ctx.number(
+                "QthreeLayoutFreeSpreadPercent",
+                100.0
+                * (max(r["free_cells"] for r in layout_rows) / max(min(r["free_cells"] for r in layout_rows), 1) - 1),
+                ".1f",
+            )
+            ctx.number("QthreeLayoutAllValid", PASS if all(r["validator_ok"] for r in layout_rows) else FAIL)
     # capacity of the empty region (what "no extra resource" could hold at most without any existing plan)
     empty_bound = math.floor(100 * horizon_t / (C_TEMPLATE["w"] * C_TEMPLATE["d"] * C_TEMPLATE["n"]))
     report = {k: v for k, v in result.items() if k not in {"new_plans"}}
     report["alternatives"] = alternatives
+    report["layouts"] = layout_rows
     report["empty_region_bound"] = empty_bound
     ctx.write_json("pack_report.json", report)
     ctx.number("QthreeNewPlans", result["value"])
@@ -711,12 +997,16 @@ def bench(ctx: StageContext) -> dict[str, Any]:
     workers = int(ctx.param("workers", 8))
     seed = ctx.seed_everything("bench")
     tiny_limits = Limits(fmax=2, tmax=1)
+    tiny_bands = [int(b) for b in ctx.param("tiny_bands", [6, 7, 8, 9])]
     tiny_rows = []
     agree = 0
     deterministic = 0
+    cancel_instances = 0
     for k in range(int(ctx.param("n_tiny", 24))):
         n_plans = 4 + k % 3
-        plans = tiny_instance(seed + k, n_plans=n_plans)
+        # a crowded band budget forces cancellations, so the exhaustive comparison exercises the three
+        # cancellation levels — the levels every optimality claim in the paper rests on (MDR-0007 addendum)
+        plans = tiny_instance(seed + k, n_plans=n_plans, bands=tiny_bands[k % len(tiny_bands)])
         options = [enumerate_options(p, tiny_limits) for p in plans]
         model = build_cell_model(plans, options)
         t0 = time.perf_counter()
@@ -727,6 +1017,8 @@ def bench(ctx: StageContext) -> dict[str, Any]:
         same = res["vector"] == truth
         agree += int(same)
         deterministic += int(again["chosen"] == res["chosen"] and again["vector"] == res["vector"])
+        cancels = sum(truth[0:3]) if truth and len(truth) == 7 else 0
+        cancel_instances += int(cancels > 0)
         combos = 1
         for o in options:
             combos *= len(o)
@@ -734,29 +1026,42 @@ def bench(ctx: StageContext) -> dict[str, Any]:
             {
                 "instance": k + 1,
                 "plans": n_plans,
+                "bands": tiny_bands[k % len(tiny_bands)],
                 "conflicts": len(detect_pairwise(plans)),
                 "combinations": combos,
                 "exhaustive_vector": truth,
                 "cpsat_vector": res["vector"],
+                "cancellations": cancels,
                 "agree": same,
                 "exhaustive_seconds": t_exh,
                 "cpsat_seconds": res["seconds"],
             }
         )
-    ctx.log.info("bench.tiny", agree=agree, total=len(tiny_rows))
+    ctx.log.info("bench.tiny", agree=agree, total=len(tiny_rows), with_cancellations=cancel_instances)
     ctx.write_json("tiny.json", tiny_rows)
 
     scaling = []
     sizes = [int(v) for v in ctx.param("sizes", [150, 300, 600])]
     scale_limit = float(ctx.param("scale_time_limit", 120))
+    repeats = int(ctx.param("timing_repeats", 3))
+
+    def _median(xs: list[float]) -> float:
+        ordered = sorted(xs)
+        mid = len(ordered) // 2
+        return ordered[mid] if len(ordered) % 2 else 0.5 * (ordered[mid - 1] + ordered[mid])
+
     for n in sizes:
         plans = synthetic_instance(n, seed + n)
-        t0 = time.perf_counter()
-        pairs = detect_pairwise(plans)
-        t_pair = time.perf_counter() - t0
-        t0 = time.perf_counter()
-        sweep = detect_bandsweep(plans)
-        t_sweep = time.perf_counter() - t0
+        # a single timing is noisy, so both detectors are timed `repeats` times and the median reported
+        pair_times, sweep_times = [], []
+        pairs = sweep = None
+        for _ in range(repeats):
+            t0 = time.perf_counter()
+            pairs = detect_pairwise(plans)
+            pair_times.append(time.perf_counter() - t0)
+            t0 = time.perf_counter()
+            sweep = detect_bandsweep(plans)
+            sweep_times.append(time.perf_counter() - t0)
         options = [enumerate_options(p, Q2_LIMITS) for p in plans]
         t0 = time.perf_counter()
         model = build_cell_model(plans, options)
@@ -766,10 +1071,13 @@ def bench(ctx: StageContext) -> dict[str, Any]:
         row = {
             "n": n,
             "horizon": horizon(plans),
-            "conflicts": len(pairs),
+            "conflicts": len(pairs or []),
             "detectors_agree": pairs == sweep,
-            "pairwise_seconds": t_pair,
-            "sweep_seconds": t_sweep,
+            "repeats": repeats,
+            "pairwise_seconds": _median(pair_times),
+            "sweep_seconds": _median(sweep_times),
+            "pairwise_seconds_max": max(pair_times),
+            "sweep_seconds_max": max(sweep_times),
             "vars": model.n_vars,
             "rows": len(model.rows),
             "memberships": model.memberships,
@@ -787,19 +1095,25 @@ def bench(ctx: StageContext) -> dict[str, Any]:
     ctx.number("BenchTinyDeterministic", deterministic)
     ctx.number("BenchTinyAllDeterministic", PASS if deterministic == len(tiny_rows) else FAIL)
     ctx.number("BenchTinyMaxCombinations", max(r["combinations"] for r in tiny_rows))
+    ctx.number("BenchTinyWithCancellations", cancel_instances)
+    ctx.number("BenchTinyMaxCancellations", max(r["cancellations"] for r in tiny_rows))
     ctx.number("BenchScaleMaxN", max(sizes))
     ctx.number("BenchScaleMinN", min(sizes))
-    last = scaling[-1]
-    ctx.number("BenchScaleMaxPairwiseSeconds", last["pairwise_seconds"], ".2f")
-    ctx.number("BenchScaleMaxSweepSeconds", last["sweep_seconds"], ".2f")
-    ctx.number("BenchScaleMaxCpsatSeconds", last["cpsat_seconds"], ".1f")
-    ctx.number("BenchScaleMaxStatus", last["cpsat_status"])
+    ctx.number("BenchScaleRepeats", repeats)
+    # "Max" over every size, not the value at the largest size
+    ctx.number("BenchScaleMaxPairwiseSeconds", max(r["pairwise_seconds"] for r in scaling), ".2f")
+    ctx.number("BenchScaleMaxSweepSeconds", max(r["sweep_seconds"] for r in scaling), ".2f")
+    ctx.number("BenchScaleMaxCpsatSeconds", max(r["cpsat_seconds"] for r in scaling), ".1f")
+    ctx.number("BenchScaleLastPairwiseSeconds", scaling[-1]["pairwise_seconds"], ".2f")
+    ctx.number("BenchScaleLastSweepSeconds", scaling[-1]["sweep_seconds"], ".2f")
+    ctx.number("BenchScaleMaxStatus", scaling[-1]["cpsat_status"])
     ctx.number("BenchScaleAllOptimal", PASS if all(r["cpsat_status"] == "OPTIMAL" for r in scaling) else FAIL)
     ctx.number("BenchScaleDetectorsAgree", PASS if all(r["detectors_agree"] for r in scaling) else FAIL)
     return {
         "tiny_agree": agree,
         "tiny_deterministic": deterministic,
         "tiny_total": len(tiny_rows),
+        "tiny_with_cancellations": cancel_instances,
         "scaling": [(r["n"], r["cpsat_status"], round(r["cpsat_seconds"], 1)) for r in scaling],
     }
 
