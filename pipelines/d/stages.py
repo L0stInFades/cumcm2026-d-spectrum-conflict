@@ -460,7 +460,11 @@ def resolve_interval(ctx: StageContext) -> dict[str, Any]:
     return _run_resolution(ctx, plans, limits, "Qfour", default_hint=Q4_HINT)
 
 
-@stage("compare", deps=("resolve", "resolve_interval"), description="Q4 vs Q2: lexicographic comparison of the two resolutions")
+@stage(
+    "compare",
+    deps=("resolve", "resolve_interval"),
+    description="Q4 vs Q2: lexicographic comparison of the two resolutions",
+)
 def compare(ctx: StageContext) -> dict[str, Any]:
     q2 = ctx.dep_data("resolve", "solver_report.json")
     q4 = ctx.dep_data("resolve_interval", "solver_report.json")
