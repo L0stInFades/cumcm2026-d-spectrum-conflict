@@ -27,6 +27,7 @@
 - **主结果（表 1 格式）**：`tab_q2_table1`；数字键 `QtwoKeepA/B/C`、`QtwoAdjustA/B/C`、`QtwoCancelA/B/C`、`QtwoKeepTotal`、`QtwoAdjustTotal`、`QtwoCancelTotal`。目标向量 `QtwoVector`（撤销 A, 撤销 B, 撤销 C, 调整 A, 调整 B, 调整 C, 幅度×10）。
 - **调整幅度统计**：频移计划数 / 平均 / 最大 / 合计（`QtwoFreqShifted`、`QtwoMeanAbsFreqShift`、`QtwoMaxAbsFreqShift`、`QtwoSumAbsFreqShift`），时移同理（`QtwoTimeShifted` …），归一化总幅度 `QtwoAmplitude`（= Σ|δ|/10 + Σ|τ|/5），调整后最晚结束时刻 `QtwoHorizonAfter`。逐计划动作见 `tab_q2_adjustments`（longtable，附录）与 `result2.xlsx`（`ResultTwoRows` 行，仅列出被调整/撤销的计划）。
 - **最优性证据**：`tab_q2_solver`（每级 CP-SAT 值/下界/状态/用时、HiGHS LP 下界、MILP 值/下界/状态）；`tab_q2_model`（模型规模：变量 `QtwoVars`、单元 `QtwoCells`、约束 `QtwoRows`/`QtwoRowsRaw`、隶属 `QtwoMemberships`、团约束 `QtwoGroups`、可能冲突的计划对 `QtwoInteractingPairs`）。逐级键：`QtwoValueCancela` … `QtwoValueAmplitude`、`QtwoBoundCancela` …、`QtwoStatusCancela` …、`QtwoLpBoundCancela` …。汇总键：`QtwoAllOptimal`、`QtwoHighsAgree`、`QtwoHighsAllOptimal`、`QtwoWeightedAgree`、`QtwoCpsatSeconds`、`QtwoHighsSeconds`、`QtwoWeightedSeconds`；热启动 `QtwoHintUsed`、`QtwoHintFeasible`、`QtwoHintVector`。
+- **被撤销计划的解释**：`tab_q2_cancelled`（每个被撤销计划的频段/首次时间、冲突邻居数、其中 A/B 类邻居数、可用平移动作数），用于论文说明撤销为何不可避免。
 - **备选目标方案（MDR-0003）**：`tab_q2_schemes` 与 `fig_q2_schemes`：P（主方案）、T（总量优先）、S（无优先级）、W（纯加权）的撤销/调整/幅度对照；键 `QtwoSchemeXAdjustTotal`、`QtwoSchemeXCancelTotal`、`QtwoSchemeXAmplitude`、`QtwoSchemeXAdjustA`（X ∈ {P,T,S,W}）。
 - **图**：`fig_q2_resolution`（建议图注：(a) 消解前的时频平面，被调整/撤销的计划按动作着色，黑边为冲突使用次；(b) 消解后无冲突的计划，箭头为平移方向）。
 - **验证**：`QtwoValidator` = 通过（150 个决策、存留计划零冲突、表 1 与目标向量重算一致）；`tab_validation` 第 2 行。
@@ -44,7 +45,7 @@
 
 - **主结果（表 1 格式）**：`tab_q4_table1`；键 `QfourKeepA/B/C`、`QfourAdjustA/B/C`、`QfourCancelA/B/C`、`QfourKeepTotal`、`QfourAdjustTotal`、`QfourCancelTotal`、`QfourVector`；间隔调整数 `QfourGapChanged`、平均/最大 |Δg|（`QfourMeanAbsGapChange`、`QfourMaxAbsGapChange`）；其余键与问题 2 同名（前缀 `Qfour`）。
 - **与问题 2 对照**（`compare` 阶段）：`tab_q4_compare`、`fig_q4_comparison`（(a) 各类调整数量对照；(b) 问题 4 的动作构成）；键 `QfourLexNotWorse`（词典序不劣于问题 2）、`QfourCancelDelta`、`QfourAdjustDelta`、`QfourAmplitudeDelta`、`QfourHorizonDelta`（间隔改变导致的最晚结束时刻变化）。
-- **备选目标方案**：`tab_q4_schemes`。**图**：`fig_q4_resolution`。**结果文件**：`result4.xlsx`（`ResultFourRows` 行）。
+- **备选目标方案**：`tab_q4_schemes`；被撤销计划解释 `tab_q4_cancelled`。**图**：`fig_q4_resolution`。**结果文件**：`result4.xlsx`（`ResultFourRows` 行）。
 - **验证**：`QfourValidator` = 通过；`tab_validation` 第 4 行。
 - **（本节数值由最终 run 填写，见文末"最终数值"。）**
 

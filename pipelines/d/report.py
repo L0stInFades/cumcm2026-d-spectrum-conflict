@@ -17,6 +17,7 @@ from forge.runner import stage
 from forge.tex import tex_escape
 from pipelines.d.detect import overlapping_uses
 from pipelines.d.plans import CATEGORIES, Plan, horizon, plan_from_record
+from pipelines.d.resolve import Limits, enumerate_options
 
 CAT_COLOR = {"A": "#0072B2", "B": "#D55E00", "C": "#009E73"}  # fixed identity → hue (Okabe–Ito slots 1–3)
 ACTION_COLOR = {"freq": "#0072B2", "time": "#E69F00", "gap": "#CC79A7", "cancel": "#000000", "keep": "#BBBBBB"}
@@ -487,6 +488,34 @@ def _adjustment_rows(plans: list[Plan], decisions: list[dict[str, Any]], with_ga
     return rows
 
 
+def _cancelled_rows(
+    plans: list[Plan], decisions: list[dict[str, Any]], conflicts: list[dict[str, Any]], limits: Limits
+) -> list[list[Any]]:
+    """Why a plan was cancelled: its conflict degree, higher-priority neighbours and number of legal actions."""
+    by_id = {p.pid: p for p in plans}
+    neighbours: dict[str, list[str]] = {p.pid: [] for p in plans}
+    for rec in conflicts:
+        neighbours[rec["id1"]].append(rec["id2"])
+        neighbours[rec["id2"]].append(rec["id1"])
+    rows = []
+    for dec in sorted(decisions, key=lambda d: d["pid"]):
+        if dec["kind"] != "cancel":
+            continue
+        plan = by_id[dec["pid"]]
+        nbrs = neighbours[plan.pid]
+        rows.append(
+            [
+                plan.pid,
+                plan.freq_text(),
+                plan.time_text(),
+                len(nbrs),
+                sum(1 for n in nbrs if by_id[n].cat in {"A", "B"}),
+                len(enumerate_options(plan, limits)) - 2,  # excluding keep and cancel
+            ]
+        )
+    return rows
+
+
 def _solver_tables(ctx: StageContext, tag: str, rep: dict[str, Any]) -> None:
     """Per-level solver evidence (CP-SAT value/bound/status, HiGHS LP and MILP bounds) and model statistics."""
     solver_rows = []
@@ -649,6 +678,15 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         align="lrrrrcc",
     )
     _solver_tables(ctx, "q2", q2)
+    _write_table(
+        ctx,
+        "tab_q2_cancelled",
+        ["装备编号", "频段", "首次时间", "冲突邻居数", "其中 A/B 类", "可用平移动作数"],
+        _cancelled_rows(
+            plans, q2_dec, conflicts, Limits(fmax=int(q2["limits"]["fmax"]), tmax=int(q2["limits"]["tmax"]))
+        ),
+        align="lllrrr",
+    )
 
     pack = ctx.dep_data("pack", "pack_report.json")
     new_plans = _plans(ctx.dep_data("pack", "new_plans.json"))
@@ -755,6 +793,23 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         align="lrrrrrc",
     )
     _solver_tables(ctx, "q4", q4)
+    _write_table(
+        ctx,
+        "tab_q4_cancelled",
+        ["装备编号", "频段", "首次时间", "冲突邻居数", "其中 A/B 类", "可用调整动作数"],
+        _cancelled_rows(
+            plans,
+            q4_dec,
+            conflicts,
+            Limits(
+                fmax=int(q4["limits"]["fmax"]),
+                tmax=int(q4["limits"]["tmax"]),
+                gmax=int(q4["limits"]["gmax"]),
+                gap_categories=tuple(q4["limits"]["gap_categories"]),
+            ),
+        ),
+        align="lllrrr",
+    )
 
     val_rows = []
     for stage_name, label in (
