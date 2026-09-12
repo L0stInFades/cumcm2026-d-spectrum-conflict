@@ -3,7 +3,7 @@
 
 \subsection{问题 1：冲突强度、度分布与全部冲突对}
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering\small
 \begin{minipage}[t]{0.46\linewidth}
 \centering
@@ -26,7 +26,7 @@
 
 \subsection{问题 2：被撤销计划与逐计划动作}
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering\small
 \caption{问题 2 中被撤销计划的局部环境。“冲突邻居数”为该计划在冲突图中的度，
 “其中 A/B 类”为这些邻居中高优先级装备的个数，“可用平移动作数”为式~\eqref{eq:options} 中该计划的合法平移动作数。
@@ -50,7 +50,7 @@
 
 \subsection{问题 4：模型规模、目标方案与逐计划动作}
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering\small
 \begin{minipage}[t]{0.52\linewidth}
 \centering
@@ -64,7 +64,7 @@
 \end{minipage}
 \end{table}
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering\small
 \caption{四种目标方案在问题 4 上的对照（列的含义同表~\ref{tab:q2schemes}，另给出使用间隔调整动作的计划数）。}
 \label{tab:q4schemes}
@@ -78,7 +78,7 @@
 
 \subsection{模型检验：微型实例穷举对照与规模基准}
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering\footnotesize
 \caption{$\valBenchTinyInstances$ 个随机微型实例上的穷举对照。对每个实例枚举全部动作组合，
 求出词典序最优向量，与本文的 CP-SAT 求解器结果逐一比对；最大枚举组合数为 $\valBenchTinyMaxCombinations$。}
@@ -86,7 +86,7 @@
 \input{generated/tables/tab_bench_tiny.tex}
 \end{table}
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering\footnotesize
 \caption{合成实例上的规模基准（$n=\valBenchScaleMinN,\dots,\valBenchScaleMaxN$，时间范围随 $n$ 等比放大以保持密度）。
 CP-SAT 一列采用固定 $120$ s 时限，故其状态只说明“在该预算内找到了可行解”，不代表可证明最优。}
@@ -95,6 +95,13 @@ CP-SAT 一列采用固定 $120$ s 时限，故其状态只说明“在该预算�
 \resizebox{\linewidth}{!}{\input{generated/tables/tab_bench_scaling.tex}}
 \end{table}
 
-\paperfigure[0.92\linewidth]{fig_bench_scaling}{算法的规模基准。合成实例 $n=\valBenchScaleMinN,\dots,\valBenchScaleMaxN$ 下
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\linewidth]{fig_bench_scaling}
+\caption{算法的规模基准。合成实例 $n=\valBenchScaleMinN,\dots,\valBenchScaleMaxN$ 下
 两种检测算法与模型构建的用时，以及 CP-SAT 在固定 $120$ s 时限下的求解时间（纵轴为对数刻度）。
-检测算法始终为亚秒级，求解时间则受时限截断。}{fig:benchscaling}
+检测算法始终为亚秒级，求解时间则受时限截断。}
+\label{fig:benchscaling}
+\end{figure}
+
+\FloatBarrier

@@ -4,7 +4,7 @@
 每一条都给出可核查的产物，并\emph{明确区分“已证明”与“已知最好”}。
 
 \subsection{与求解器分离的独立校验}
-\label{sec:validation}
+\label{sec:indepcheck}
 
 本文实现了一套\textbf{独立校验器}，它刻意不复用检测与求解的任何代码：
 对给定的一组计划，它按定义~\eqref{eq:cells} 把每个计划\emph{显式展开}为时频单元的集合，
@@ -32,7 +32,7 @@ $|\delta|\le\Phi$、$|\tau|\le\mathcal{T}$、$|\Delta g|\le\Gamma$、$g'\ge 1$ �
 
 \paragraph{两种检测算法。}成对枚举（算法~\ref{alg:pairwise}）与按频段分桶的扫描线给出\emph{完全相同}的
 $\valQoneConflictPairs$ 对冲突；在 $n=\valBenchScaleMinN,\dots,\valBenchScaleMaxN$ 的合成实例上二者也始终一致
-（\valBenchScaleDetectorsAgree{}，附录表~\ref{tab:benchscaling}）。加上第~\ref{sec:validation} 节的单元集合校验器，
+（\valBenchScaleDetectorsAgree{}，附录表~\ref{tab:benchscaling}）。加上第~\ref{sec:indepcheck} 节的单元集合校验器，
 问题 1 的答案由三种互不相同的算法共同确认。
 
 \paragraph{两个求解器。}本文用 HiGHS\cite{huangfu2018} 对问题 2、4 的模型\emph{独立建模}（0--1 线性规划形式），

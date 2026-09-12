@@ -31,7 +31,7 @@ $U(P)$ 是频段集合与时间集合的笛卡尔积，故 $U(P_i)\cap U(P_j)=\b
 
 命题~\ref{prop:cell} 把一个集合论判定化为常数时间的区间算术，是第~\ref{sec:q1alg} 节两种算法的共同基础；
 同时它给出了一个\emph{与区间算术无关}的第三种判定方式——直接展开单元集合求交——本文的独立校验器正是用后者
-复核前者（第~\ref{sec:validation} 节）。
+复核前者（第~\ref{sec:indepcheck} 节）。
 
 \subsection{两种检测算法}
 \label{sec:q1alg}
@@ -74,7 +74,7 @@ $E\leftarrow\varnothing$\;
 \end{proposition}
 
 两种算法在本实例上的实测用时分别为 $\valQonePairwiseMs$ ms 与 $\valQoneSweepMs$ ms，
-且给出\emph{完全相同}的冲突对集合；在 $N=\valBenchScaleMaxN$ 的合成实例上二者仍一致（第~\ref{sec:validation} 节）。
+且给出\emph{完全相同}的冲突对集合；在 $N=\valBenchScaleMaxN$ 的合成实例上二者仍一致（第~\ref{sec:indepcheck} 节）。
 
 \subsection{检测结果与冲突结构}
 
@@ -209,7 +209,7 @@ $\sum_{j>k}W_jU_j=W_{k+1}U_{k+1}+\sum_{j>k+1}W_jU_j<W_{k+1}(U_{k+1}+1)=W_k$）�
 \end{proof}
 
 命题~\ref{prop:weights} 给出一条\emph{独立}的求解路径：用一次单目标求解复核逐级求解的结果。本文两条路径都走，
-并把二者是否一致作为交叉验证证据（第~\ref{sec:validation} 节）。
+并把二者是否一致作为交叉验证证据（第~\ref{sec:indepcheck} 节）。
 
 \begin{proposition}[计算复杂性]\label{prop:nphard}
 即使只允许“保持”与“撤销”两种动作，问题~\eqref{eq:lexmin} 的第一层（最少撤销）也等价于在冲突图 $G$ 上求最大独立集
