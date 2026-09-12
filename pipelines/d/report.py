@@ -690,8 +690,10 @@ def tables(ctx: StageContext) -> dict[str, Any]:
                 f"{stats['plans_by_cat']['A']}/{stats['plans_by_cat']['B']}/{stats['plans_by_cat']['C']}",
             ],
             ["冲突对数", stats["pairs"]],
-            ["相交的使用次对数 / 参与冲突的使用次数 / 使用次总数",
-             f"{stats['use_pairs']} / {stats['uses_in_conflict']} / {stats['uses_total']}"],
+            [
+                "相交的使用次对数 / 参与冲突的使用次数 / 使用次总数",
+                f"{stats['use_pairs']} / {stats['uses_in_conflict']} / {stats['uses_total']}",
+            ],
             [
                 "卷入冲突的计划数（A/B/C）",
                 f"{stats['plans_involved']}（{stats['plans_involved_by_cat']['A']}/"
@@ -906,7 +908,7 @@ def tables(ctx: StageContext) -> dict[str, Any]:
     )
     try:
         variant = ctx.dep_data("resolve_interval", "variant_uncapped.json")
-    except Exception:  # noqa: BLE001 - the variant solve is optional
+    except Exception:
         variant = None
     if variant:
         _write_table(
@@ -966,7 +968,17 @@ def tables(ctx: StageContext) -> dict[str, Any]:
     _write_table(
         ctx,
         "tab_q4_schemes",
-        ["目标方案", "撤销 A/B/C", "调整 A/B/C", "调整合计", "归一化幅度", "间隔调整数", "预算/s", "用时/s", "独立校验"],
+        [
+            "目标方案",
+            "撤销 A/B/C",
+            "调整 A/B/C",
+            "调整合计",
+            "归一化幅度",
+            "间隔调整数",
+            "预算/s",
+            "用时/s",
+            "独立校验",
+        ],
         scheme_rows4,
         align="lrrrrrrrc",
     )
@@ -1016,7 +1028,18 @@ def tables(ctx: StageContext) -> dict[str, Any]:
     _write_table(
         ctx,
         "tab_bench_tiny",
-        ["实例", "计划数", "频段数", "冲突对", "动作组合数", "穷举最优向量", "撤销分量", "CP-SAT 向量", "一致", "穷举用时/s"],
+        [
+            "实例",
+            "计划数",
+            "频段数",
+            "冲突对",
+            "动作组合数",
+            "穷举最优向量",
+            "撤销分量",
+            "CP-SAT 向量",
+            "一致",
+            "穷举用时/s",
+        ],
         [
             [
                 r["instance"],
