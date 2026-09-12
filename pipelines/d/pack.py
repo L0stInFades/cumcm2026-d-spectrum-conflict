@@ -5,6 +5,7 @@ the Problem-2 solution (MDR-0005). Variables x[f,s] (band start, first-use start
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -171,6 +172,56 @@ def highs_pack(
     else:
         out["value"] = -float(info.objective_function_value)
     return out
+
+
+def plan_offsets(plan: Plan) -> np.ndarray:
+    """Time offsets (relative to the first-use start) occupied by ``plan``."""
+    return np.array([k * plan.period + j for k in range(plan.n) for j in range(plan.d)], dtype=np.int64)
+
+
+def free_positions(grid: np.ndarray, width: int, offsets: np.ndarray, *, first_only: bool = False) -> np.ndarray:
+    """All (f, s) at which a plan of this shape fits in the free cells of ``grid``; shape (m, 2).
+
+    With ``first_only`` the scan stops at the lexicographically smallest (f, s), which is what first-fit
+    needs and keeps the repack linear in the number of plans rather than in the number of positions."""
+    bands, horizon = grid.shape
+    span = int(offsets[-1]) + 1
+    n_s = horizon - span + 1
+    if n_s <= 0 or width > bands:
+        return np.zeros((0, 2), dtype=np.int64)
+    free = ~grid
+    rows = []
+    windows_index = np.arange(n_s)[:, None] + offsets[None, :]
+    for f in range(bands - width + 1):
+        strip = np.all(free[f : f + width], axis=0)
+        ok = np.flatnonzero(np.all(strip[windows_index], axis=1))
+        if first_only:
+            if len(ok):
+                return np.array([(f, int(ok[0]))], dtype=np.int64)
+            continue
+        rows.extend((f, int(s)) for s in ok)
+    return np.array(rows, dtype=np.int64).reshape(-1, 2)
+
+
+def repack_existing(plans: list[Plan], horizon: int, bands: int = BANDS) -> tuple[list[Plan], np.ndarray]:
+    """First-fit decreasing re-placement of every plan (MDR-0010, interpretation B).
+
+    Each plan keeps ``w``, ``d``, ``g`` and ``n`` — only its band start and first-use start move, by an
+    unrestricted amount — so the number of cells it occupies is unchanged. Plans are placed largest-first
+    at the lexicographically smallest free (f, s), which compacts them towards low bands and early times
+    and leaves a large contiguous free region. Raises when a plan cannot be placed at all."""
+    grid = np.zeros((bands, horizon), dtype=bool)
+    order = sorted(plans, key=lambda p: (-(p.w * p.d * p.n), -p.w, p.pid))
+    placed: list[Plan] = []
+    for plan in order:
+        offsets = plan_offsets(plan)
+        spots = free_positions(grid, plan.w, offsets, first_only=True)
+        if not len(spots):
+            raise RuntimeError(f"first-fit decreasing could not place {plan.pid} within {bands}x{horizon}")
+        f, s = (int(v) for v in spots[0])
+        grid[f : f + plan.w, s + offsets] = True
+        placed.append(replace(plan, f=f, s=s))
+    return sorted(placed, key=lambda p: p.pid), grid
 
 
 def plans_from_choice(candidates: np.ndarray, chosen: list[int], template: dict[str, int]) -> list[Plan]:

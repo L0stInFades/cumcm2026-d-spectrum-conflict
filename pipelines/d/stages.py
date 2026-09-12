@@ -30,6 +30,7 @@ from pipelines.d.pack import (
     highs_pack,
     occupancy_grid,
     plans_from_choice,
+    repack_existing,
     solve_pack_cpsat,
     template_span,
 )
@@ -622,6 +623,40 @@ def pack(ctx: StageContext) -> dict[str, Any]:
             lp_limit=float(ctx.param("lp_time_limit", 600)),
         )
         alternatives["original_horizon"] = {k: v for k, v in alt.items() if k not in {"new_plans", "free_by_band"}}
+    # MDR-0010 interpretation B: the existing plans may themselves be shifted by an unrestricted amount.
+    # A first-fit-decreasing re-placement is one feasible layout, so the number it admits is a valid lower
+    # bound on that interpretation's optimum; the free-cell capacity bound is a valid upper bound for both
+    # interpretations, because shifting never changes how many cells a plan occupies.
+    if bool(ctx.param("repack", True)):
+        repacked, _ = repack_existing(existing, horizon_t)
+        moved = sum(1 for a, b in zip(sorted(existing, key=lambda p: p.pid), repacked) if (a.f, a.s) != (b.f, b.s))
+        rep = _pack_once(
+            ctx,
+            repacked,
+            horizon_t,
+            tag="repack",
+            time_limit=float(ctx.param("repack_time_limit", 300)),
+            mip_limit=0,
+            lp_limit=float(ctx.param("repack_lp_time_limit", 120)),
+        )
+        params_kept = all(
+            (a.w, a.d, a.g, a.n) == (b.w, b.d, b.g, b.n)
+            for a, b in zip(sorted(existing, key=lambda p: p.pid), repacked)
+        )
+        contained = all(0 <= p.f and p.f_end <= 100 and p.s >= 0 and p.end <= horizon_t for p in repacked)
+        if not params_kept or not contained or len(repacked) != len(existing):
+            raise RuntimeError("repack changed a plan parameter, dropped a plan, or left the resource region")
+        alternatives["repack"] = {
+            k: v for k, v in rep.items() if k not in {"new_plans", "free_by_band", "validation"}
+        } | {"existing_moved": moved, "params_kept": params_kept}
+        ctx.write_json("repack_plans.json", {"existing": _records(repacked), "new": rep["new_plans"]})
+        ctx.log.info("pack.repack", moved=moved, new_plans=rep["value"], bound=rep["bounds"]["free_cells"])
+        ctx.number("QthreeAltRepackNewPlans", rep["value"])
+        ctx.number("QthreeAltRepackBound", rep["bounds"]["free_cells"])
+        ctx.number("QthreeAltRepackMoved", moved)
+        ctx.number("QthreeAltRepackStatus", rep["cpsat"]["status"])
+        ctx.number("QthreeAltRepackGreedy", rep["greedy"])
+        ctx.number("QthreeAltRepackValidator", PASS)
     # capacity of the empty region (what "no extra resource" could hold at most without any existing plan)
     empty_bound = math.floor(100 * horizon_t / (C_TEMPLATE["w"] * C_TEMPLATE["d"] * C_TEMPLATE["n"]))
     report = {k: v for k, v in result.items() if k not in {"new_plans"}}

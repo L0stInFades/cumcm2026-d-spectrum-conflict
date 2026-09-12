@@ -273,18 +273,28 @@ def fig_schemes(ctx: StageContext, name: str, alternatives: dict[str, Any]) -> N
     plotting.save(fig, ctx.out("figures", f"{name}.pdf"))
 
 
-def fig_q3_layout(ctx: StageContext, existing: list[Plan], new_plans: list[Plan], horizon_t: int) -> None:
+def fig_q3_layout(
+    ctx: StageContext,
+    existing: list[Plan],
+    new_plans: list[Plan],
+    horizon_t: int,
+    *,
+    name: str = "fig_q3_layout",
+    title: str | None = None,
+) -> None:
     fig, ax = plotting.new_figure(6.5, 3.4)
     _rects(ax, existing, {p.pid: GREY for p in existing}, alpha=0.9)
     _rects(ax, new_plans, {p.pid: CAT_COLOR["C"] for p in new_plans}, alpha=0.95)
     _plane(ax, horizon_t)
+    if title:
+        ax.set_title(title)
     _legend(
         ax,
-        [("问题 2 的既有计划", GREY, None), ("新增 C 类计划", CAT_COLOR["C"], None)],
+        [("既有计划", GREY, None), (f"新增 C 类计划（{len(new_plans)} 个）", CAT_COLOR["C"], None)],
         loc="upper left",
         bbox_to_anchor=(1.0, 1.0),
     )
-    plotting.save(fig, ctx.out("figures", "fig_q3_layout.pdf"))
+    plotting.save(fig, ctx.out("figures", f"{name}.pdf"))
 
 
 def fig_q4_comparison(
@@ -395,7 +405,18 @@ def figures(ctx: StageContext) -> dict[str, Any]:
     fig_schemes(ctx, "fig_q2_schemes", ctx.dep_data("resolve", "alternatives.json"))
     existing = _plans(ctx.dep_data("resolve", "resolved_plans.json"))
     new_plans = _plans(ctx.dep_data("pack", "new_plans.json"))
-    fig_q3_layout(ctx, existing, new_plans, int(ctx.dep_data("pack", "pack_report.json")["horizon"]))
+    pack_report = ctx.dep_data("pack", "pack_report.json")
+    fig_q3_layout(ctx, existing, new_plans, int(pack_report["horizon"]))
+    if "repack" in pack_report.get("alternatives", {}):
+        repack = ctx.dep_data("pack", "repack_plans.json")
+        fig_q3_layout(
+            ctx,
+            _plans(repack["existing"]),
+            _plans(repack["new"]),
+            int(pack_report["horizon"]),
+            name="fig_q3_repack",
+            title="既有计划经首次适配重排后（MDR-0010 解释 B）",
+        )
     q4_dec = ctx.dep_data("resolve_interval", "decisions.json")
     fig_resolution(ctx, "fig_q4_resolution", plans, q4_dec, conflicts, "问题 4")
     q2_rep = ctx.dep_data("resolve", "solver_report.json")
@@ -719,6 +740,14 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         alt = pack["alternatives"]["original_horizon"]
         pack_rows.append(
             [f"备选：T_end 取原始计划最晚结束时刻 {alt['horizon']}", f"{alt['value']}（上界 {alt['upper_bound']}）"]
+        )
+    if pack.get("alternatives", {}).get("repack"):
+        rep = pack["alternatives"]["repack"]
+        pack_rows.append(
+            [
+                "备选解释 B（既有计划可任意平移，MDR-0010）：下界 / 上界",
+                f"{rep['value']} / {rep['bounds']['free_cells']}（重排移动 {rep['existing_moved']} 个既有计划）",
+            ]
         )
     _write_table(ctx, "tab_q3_summary", ["项目", "数值"], pack_rows, align="lr")
     _write_table(
