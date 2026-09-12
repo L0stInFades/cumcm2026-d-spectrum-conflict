@@ -740,10 +740,13 @@ def tables(ctx: StageContext) -> dict[str, Any]:
             ],
             ["时间范围（最晚结束时刻，Δt）", stats["horizon"]],
             [
-                "冲突图独立数 α(G)（状态）",
+                "冲突图的最大独立集规模（状态）",
                 f"{stats['max_independent_set']['value']}（{stats['max_independent_set']['status']}）",
             ],
-            ["由此得到的被触动计划数下界 n − α(G)", len(plans) - stats["max_independent_set"]["value"]],
+            [
+                "由此得到的被触动计划数下界（计划总数减最大独立集规模）",
+                len(plans) - stats["max_independent_set"]["value"],
+            ],
         ],
         align="lr",
     )
@@ -947,7 +950,7 @@ def tables(ctx: StageContext) -> dict[str, Any]:
             ["模型", "动作数", "目标向量", "撤销合计", "调整合计", "最晚结束时刻/Δt", "用时/s", "独立校验"],
             [
                 [
-                    "主模型：e_i ≤ T_end（不增加时频资源）",
+                    "主模型：结束时刻不超过原时间范围（不增加时频资源）",
                     q4["model"]["vars"],
                     _vector_text(q4["vector"]),
                     sum(q4["vector"][0:3]),
@@ -1060,15 +1063,15 @@ def tables(ctx: StageContext) -> dict[str, Any]:
         "tab_bench_tiny",
         [
             "实例",
-            "计划数",
-            "频段数",
+            "计划",
+            "频段",
             "冲突对",
-            "动作组合数",
+            "组合数",
             "穷举最优向量",
-            "撤销分量",
+            "撤销非零",
             "CP-SAT 向量",
             "一致",
-            "穷举用时/s",
+            "用时/s",
         ],
         [
             [

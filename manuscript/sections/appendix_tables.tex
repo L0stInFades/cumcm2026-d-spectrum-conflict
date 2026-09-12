@@ -88,7 +88,8 @@
 \caption{$\valBenchTinyInstances$ 个随机微型实例上的穷举对照。对每个实例枚举全部动作组合，
 求出词典序最优向量，与本文的 CP-SAT 求解器结果逐一比对；最大枚举组合数为 $\valBenchTinyMaxCombinations$。}
 \label{tab:benchtiny}
-\input{generated/tables/tab_bench_tiny.tex}
+\setlength{\tabcolsep}{3pt}
+{\scriptsize\input{generated/tables/tab_bench_tiny.tex}}
 \end{table}
 
 \begin{table}[H]
@@ -110,3 +111,22 @@ CP-SAT 一列采用固定 $120$ s 时限，故其状态只说明“在该预算�
 \end{figure}
 
 \FloatBarrier
+
+\subsection{最优性证据的两张补充表}
+
+\begin{table}[H]
+\centering\footnotesize
+\caption{问题 2 的条件最优性（MDR-0012）：把被撤销计划的\emph{集合}固定为表~\ref{tab:q2table1} 所报告的那
+$\valQtwoValueCancelc$ 个 C 类计划之后，对调整三级与幅度级逐级最小化的结果。此处的“已证明下界”与状态
+\textsf{OPTIMAL} 只对该\emph{受限}问题成立，不构成对词典序真优解相应分量的界。}
+\label{tab:q2conditional}
+\input{generated/tables/tab_q2_conditional.tex}
+\end{table}
+
+\begin{table}[H]
+\centering\small
+\caption{问题 3 的答案对“采用哪一个问题 2 方案”的依赖。四个方案均为无冲突方案且均通过独立校验；
+在每个方案的存留计划布局之上求解同一个模型~\eqref{eq:pack}。各方案的时间范围可能不同，故单列给出，
+不同布局的自由单元数不可直接相减。}\label{tab:q3layouts}
+\resizebox{\linewidth}{!}{\input{generated/tables/tab_q3_layouts.tex}}
+\end{table}

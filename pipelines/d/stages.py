@@ -1052,6 +1052,9 @@ def pack(ctx: StageContext) -> dict[str, Any]:
     ctx.number("QthreeUtilBefore", 100 * result["utilisation_before"], ".1f")
     ctx.number("QthreeUtilAfter", 100 * result["utilisation_after"], ".1f")
     ctx.number("QthreeValidator", PASS)
+    # length of the time-offset template used by the vectorised candidate scan: d_C * n_C time slots,
+    # to be distinguished from the w_C*d_C*n_C cells a plan occupies
+    ctx.number("QthreeOffsets", C_TEMPLATE["d"] * C_TEMPLATE["n"])
     ctx.number("QthreeSpan", result["span"])
     if "original_horizon" in alternatives:
         ctx.number("QthreeAltHorizon", alt_horizon)
