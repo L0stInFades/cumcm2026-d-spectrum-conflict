@@ -689,6 +689,36 @@ def resolve_interval(ctx: StageContext) -> dict[str, Any]:
 
 
 @stage(
+    "coldstart",
+    deps=("detect", "resolve"),
+    description="Q2 solved from scratch (no stored incumbent), so that the reported result does not depend on it",
+)
+def coldstart(ctx: StageContext) -> dict[str, Any]:
+    """Answers the reviewer's question 'is the repository's answer the search's output, or its input?'.
+
+    The primary ``resolve`` stage warm-starts from ``configs/hints/q2_decisions.json`` (an incumbent of an
+    earlier run, provenance inside the file). This stage runs the identical model and objective with the
+    hint switched off, and reports the vector it reaches on its own together with the difference. Nothing
+    here feeds the delivered workbooks; it is evidence about the method, not about the answer."""
+    plans = _plans(ctx.dep_data("detect", "plans.json"))
+    limits = Limits(fmax=int(ctx.param("fmax", Q2_LIMITS.fmax)), tmax=int(ctx.param("tmax", Q2_LIMITS.tmax)))
+    ctx.params.setdefault("hint_from", "")
+    out = _run_resolution(ctx, plans, limits, "Cold", default_hint=None)
+    warm = ctx.dep_data("resolve", "solver_report.json")
+    cold_vec, warm_vec = list(out["vector"]), list(warm["vector"])
+    ctx.number("ColdMatchesWarm", PASS if cold_vec == warm_vec else FAIL)
+    ctx.number("ColdWarmVector", _vector_text(warm_vec))
+    ctx.number(
+        "ColdRelation",
+        "相同" if cold_vec == warm_vec else ("冷启动更优" if cold_vec < warm_vec else "冷启动更差"),
+    )
+    ctx.number("ColdCancelDelta", sum(cold_vec[0:3]) - sum(warm_vec[0:3]))
+    ctx.number("ColdAdjustDelta", sum(cold_vec[3:6]) - sum(warm_vec[3:6]))
+    ctx.log.info("coldstart", cold=cold_vec, warm=warm_vec)
+    return {"cold_vector": cold_vec, "warm_vector": warm_vec, "matches": cold_vec == warm_vec}
+
+
+@stage(
     "compare",
     deps=("resolve", "resolve_interval"),
     description="Q4 vs Q2: lexicographic comparison of the two resolutions",
@@ -1212,14 +1242,25 @@ def sensitivity(ctx: StageContext) -> dict[str, Any]:
     ctx.number("SensMonotone", PASS if monotone else FAIL)
     # Per-case macros, so that the paper can attribute a change to one parameter at a time instead of
     # quoting the extremum over the whole grid (which varies both limits at once).
-    words = {2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 9: "Nine", 10: "Ten", 11: "Eleven",
-             15: "Fifteen", 20: "Twenty"}
+    words = {
+        2: "Two",
+        3: "Three",
+        4: "Four",
+        5: "Five",
+        6: "Six",
+        9: "Nine",
+        10: "Ten",
+        11: "Eleven",
+        15: "Fifteen",
+        20: "Twenty",
+    }
     by_case = {(r["fmax"], r["tmax"]): r for r in rows}
     for (fmax, tmax), r in by_case.items():
         if fmax in words and tmax in words and r["cancel_total"] is not None:
             key = f"SensPhi{words[fmax]}Tau{words[tmax]}"
             ctx.number(f"{key}Cancel", r["cancel_total"])
             ctx.number(f"{key}Adjust", r["adjust_total"])
+
     # One-at-a-time elasticities: cancellations avoided per extra unit of each limit, holding the other
     # at the value the problem statement gives. Reported instead of the raw "twice as effective" claim,
     # which compares a +5 df increment against a +3 dt increment.
