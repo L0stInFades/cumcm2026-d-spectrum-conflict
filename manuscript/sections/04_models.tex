@@ -289,6 +289,11 @@ $x^\ast\leftarrow x_0$ \textbf{若} $x_0$ 可行 \textbf{否则} $\varnothing$\q
 其值是该级的全局最优，与搜索从哪里出发无关；只有\emph{未证明最优}的层级才依赖起点，
 本文对这些层级本就只报“值 / 证明下界 / 状态”。
 
+为把这一点做实，本文另设一个\emph{冷启动}阶段：同一模型、同一目标、同一时限，但\textbf{不加载任何现任解}，
+从零开始求解问题 2。它得到的向量为 $\valColdVector$，与热启动结果 $\valColdWarmVector$ 的关系是
+“\valColdRelation{}”（撤销总数相差 $\valColdCancelDelta$、调整总数相差 $\valColdAdjustDelta$）。
+该阶段不参与任何交付工作簿的生成，只回答一个方法层面的问题：仓库中存放的现任解，是搜索的\emph{输出}还是\emph{输入}。
+
 求解器为 OR-Tools CP-SAT\cite{ortools2025}（$24$ 线程、固定随机种子、显式加入核心引导子求解器），
 各级时限 $[20,20,600,300,300,300,240]$ 秒，总用时 $\valQtwoCpsatSeconds$ s；
 另用 HiGHS\cite{huangfu2018} 对\emph{同一模型独立建模}，逐级给出线性松弛下界与限时 MILP 结果（总用时 $\valQtwoHighsSeconds$ s）；
