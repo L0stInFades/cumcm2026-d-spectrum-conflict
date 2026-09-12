@@ -230,8 +230,20 @@ def _run_resolution(
     )
 
     hint, hint_info = _load_hint(ctx, model, ctx.param("hint_from", default_hint))
+    # The separated-weight scalarisation runs first (MDR-0009): warm-started from the *file* incumbent it is an
+    # independent second search, and its solution seeds the lexicographic pass, so the reported vector can
+    # never be worse than either route. (Previously it was hinted by the lexicographic solution — circular.)
+    weighted = solve_weighted_cpsat(
+        model, levels, seed=seed, workers=workers, time_limit=weighted_limit, hint=hint, strength=strength
+    )
+    start = hint
+    if weighted["chosen"] is not None and hint_is_feasible(model, weighted["chosen"]):
+        if hint is None or list(weighted["vector"]) < evaluate(model, hint, levels):
+            start = weighted["chosen"]
+    hint_info["start_from"] = "file" if start is hint else "weighted"
+    hint_info["start_vector"] = evaluate(model, start, levels) if start is not None else None
     primary = solve_lexicographic_cpsat(
-        model, levels, seed=seed, workers=workers, time_limit=level_limits, strength=strength, hint=hint
+        model, levels, seed=seed, workers=workers, time_limit=level_limits, strength=strength, hint=start
     )
     ctx.log.info("cpsat.primary", vector=primary["vector"], levels=primary["levels"], seconds=primary["seconds"])
     if primary["chosen"] is None or len(primary["vector"]) != len(levels):
@@ -244,17 +256,14 @@ def _run_resolution(
             model, levels, seed=seed, workers=workers, time_limit=level_limits, strength=strength
         )
         deterministic = repeat["chosen"] == primary["chosen"] and repeat["vector"] == primary["vector"]
-    weighted = solve_weighted_cpsat(
-        model,
-        levels,
-        seed=seed,
-        workers=workers,
-        time_limit=weighted_limit,
-        hint=primary["chosen"],
-        strength=strength,
-    )
     weighted_agree = weighted["vector"] == primary["vector"]
-    ctx.log.info("cpsat.weighted", vector=weighted["vector"], status=weighted["status"], agree=weighted_agree)
+    ctx.log.info(
+        "cpsat.weighted",
+        vector=weighted["vector"],
+        status=weighted["status"],
+        agree=weighted_agree,
+        start_from=hint_info["start_from"],
+    )
     highs = solve_lexicographic_highs(
         model,
         levels,

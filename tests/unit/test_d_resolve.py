@@ -13,7 +13,9 @@ from pipelines.d.resolve import (
     decisions_from_choice,
     enumerate_options,
     evaluate,
+    hint_is_feasible,
     level_upper_bounds,
+    level_value,
     scheme_levels,
     separated_weights,
     solve_lexicographic_cpsat,
@@ -137,3 +139,50 @@ def test_strengthen_detects_forced_cancellation_and_keeps_optimum() -> None:
             strength=strengthen(model),
         )
         assert highs["agrees_with_reference"] and highs["vector"] == truth
+
+
+@pytest.mark.parametrize("seed", [31, 32, 33])
+def test_incumbent_cut_preserves_optimum_and_never_worsens_the_hint(seed: int) -> None:
+    """MDR-0009: a feasible hint bounds every level from above without removing any optimum.
+
+    The lexicographic vector must equal the exhaustive optimum whether or not a hint is supplied, and it
+    must never be lexicographically worse than the hint it started from."""
+    plans = tiny_instance(seed, n_plans=5)
+    limits = Limits(fmax=2, tmax=1)
+    model = build_cell_model(plans, [enumerate_options(p, limits) for p in plans])
+    levels = canonical_levels(model)
+    truth = exhaustive_lexicographic(plans, limits, canonical_levels, model)
+    cold = solve_lexicographic_cpsat(model, levels, seed=1, workers=2, time_limit=60)
+    assert cold["all_optimal"] and cold["vector"] == truth
+    # "cancel everything" is always feasible and (except in degenerate instances) far from optimal
+    cancel_all = [next(v for v in vs if model.option_of(v).kind == "cancel") for vs in model.plan_vars]
+    assert hint_is_feasible(model, cancel_all)
+    warm = solve_lexicographic_cpsat(model, levels, seed=1, workers=2, time_limit=60, hint=cancel_all)
+    assert warm["all_optimal"] and warm["vector"] == truth  # the cut preserved every level's optimum
+    assert warm["vector"] <= evaluate(model, cancel_all, levels)  # and never returned a worse vector
+    cuts = [lv["cut"] for lv in warm["levels"]]
+    assert cuts[0] == evaluate(model, cancel_all, levels)[0]  # first cut comes straight from the hint
+    assert all(c is not None and v <= c for c, v in zip(cuts, warm["vector"]))  # every level respects its cut
+
+
+def test_lexicographic_never_worse_than_a_good_hint() -> None:
+    """A one-second budget is far too short for the search, but the incumbent must still be returned."""
+    plans = tiny_instance(41, n_plans=6)
+    limits = Limits(fmax=2, tmax=1)
+    model = build_cell_model(plans, [enumerate_options(p, limits) for p in plans])
+    levels = canonical_levels(model)
+    truth = exhaustive_lexicographic(plans, limits, canonical_levels, model)
+    optimal = solve_lexicographic_cpsat(model, levels, seed=1, workers=2, time_limit=60)
+    starved = solve_lexicographic_cpsat(
+        model, levels, seed=1, workers=1, time_limit=0.001, hint=optimal["chosen"], strength=strengthen(model)
+    )
+    assert starved["vector"] == truth
+    assert all(lv["status"] in {"OPTIMAL", "FEASIBLE", "INCUMBENT"} for lv in starved["levels"])
+
+
+def test_level_value_matches_evaluate() -> None:
+    plans = tiny_instance(51, n_plans=4)
+    model = build_cell_model(plans, [enumerate_options(p, Limits(fmax=1, tmax=1)) for p in plans])
+    levels = canonical_levels(model)
+    chosen = [vs[0] for vs in model.plan_vars]
+    assert [level_value(terms, chosen) for _, terms in levels] == evaluate(model, chosen, levels)

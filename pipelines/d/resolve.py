@@ -356,6 +356,12 @@ def _cp_params(solver: Any, seed: int, workers: int, time_limit: float) -> None:
         solver.parameters.extra_subsolvers.append("core")
 
 
+def level_value(terms: dict[int, int], chosen: list[int]) -> int:
+    """Value of one level for a solution given as the chosen variable per plan."""
+    picked = set(chosen)
+    return int(sum(c for v, c in terms.items() if v in picked))
+
+
 def solve_lexicographic_cpsat(
     model: CellModel,
     levels: list[Level],
@@ -368,8 +374,13 @@ def solve_lexicographic_cpsat(
 ) -> dict[str, Any]:
     """Minimise the levels in order with CP-SAT, fixing each level's value before the next.
 
-    A level that reaches its time limit continues from its best-found value (recorded with its bound), so the
-    returned vector is always feasible; ``all_optimal`` tells whether every level was proven."""
+    Incumbent-preserving search (MDR-0009). A feasible ``hint`` becomes the incumbent ``x*``; before level
+    ``k`` the cut ``L_k <= L_k(x*)`` is added. Because ``x*`` is feasible and satisfies every equality fixed
+    so far, that cut removes no optimal solution, so every level's optimum is unchanged — but the level can
+    never return a value worse than the incumbent. When the solver only matches the incumbent, whichever of
+    the two solutions is lexicographically smaller on the *remaining* levels is carried forward. A level that
+    reaches its time limit continues from its best-found value (recorded with its bound), so the returned
+    vector is always feasible; ``all_optimal`` tells whether every level was proven."""
     from ortools.sat.python import cp_model
 
     t0 = time.monotonic()
@@ -379,45 +390,55 @@ def solve_lexicographic_cpsat(
         limits = [float(x) for x in time_limit]
     limits += [limits[-1]] * (len(levels) - len(limits))
     cp, y = _cp_base(model, strength)
+    incumbent: list[int] | None = list(hint) if hint is not None and hint_is_feasible(model, hint) else None
     if hint is not None:
         hinted = set(hint)
         for v in range(model.n_vars):
             cp.AddHint(y[v], v in hinted)
     per_level: list[dict[str, Any]] = []
     values: list[int] = []
-    chosen: list[int] | None = None
+    chosen: list[int] | None = list(incumbent) if incumbent is not None else None
     all_optimal = True
-    for (name, terms), limit in zip(levels, limits):
+    for k, ((name, terms), limit) in enumerate(zip(levels, limits)):
         expr = cp_model.LinearExpr.WeightedSum([y[v] for v in terms], [c for c in terms.values()])
+        cut = level_value(terms, incumbent) if incumbent is not None else None
+        if cut is not None:
+            cp.Add(expr <= cut)  # valid: the incumbent is feasible and meets every equality fixed so far
         cp.Minimize(expr)
         solver = cp_model.CpSolver()
         _cp_params(solver, seed, workers, limit)
         t1 = time.monotonic()
         status = solver.Solve(cp)
         name_status = solver.StatusName(status)
-        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            per_level.append({"level": name, "status": name_status, "seconds": round(time.monotonic() - t1, 3)})
+        entry: dict[str, Any] = {"level": name, "status": name_status, "seconds": round(time.monotonic() - t1, 3)}
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            value = round(solver.ObjectiveValue())
+            found = [next(v for v in vars_of_plan if solver.Value(y[v])) for vars_of_plan in model.plan_vars]
+            entry["bound"] = float(solver.BestObjectiveBound())
+        elif incumbent is not None and cut is not None:
+            # no solution recovered before the limit: fall back on the incumbent, which attains `cut`
+            value, found, entry["status"], entry["bound"] = cut, list(incumbent), "INCUMBENT", 0.0
+            name_status = "INCUMBENT"
+        else:
+            per_level.append(entry)
             all_optimal = False
             break
-        value = round(solver.ObjectiveValue())
+        if incumbent is not None and cut == value:
+            # equally good here: keep whichever is lexicographically better on the levels still to come
+            tail = levels[k + 1 :]
+            if evaluate(model, incumbent, tail) < evaluate(model, found, tail):
+                found = list(incumbent)
+        incumbent = chosen = found
         values.append(value)
-        chosen = [next(v for v in vars_of_plan if solver.Value(y[v])) for vars_of_plan in model.plan_vars]
-        per_level.append(
-            {
-                "level": name,
-                "status": name_status,
-                "value": value,
-                "bound": float(solver.BestObjectiveBound()),
-                "seconds": round(time.monotonic() - t1, 3),
-                "branches": int(solver.NumBranches()),
-                "conflicts": int(solver.NumConflicts()),
-            }
-        )
+        entry["value"] = value
+        entry["cut"] = cut
+        per_level.append(entry)
         all_optimal = all_optimal and status == cp_model.OPTIMAL
         cp.Add(expr == value)
         cp.ClearHints()
+        picked = set(incumbent)
         for v in range(model.n_vars):
-            cp.AddHint(y[v], bool(solver.Value(y[v])))
+            cp.AddHint(y[v], v in picked)
     return {
         "solver": "cp-sat",
         "levels": per_level,
