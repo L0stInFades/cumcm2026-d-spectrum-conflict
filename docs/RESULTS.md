@@ -8,7 +8,7 @@
 |---|---|---|
 | 1 | 半开区间冲突判定；成对枚举 O(n²·(m_i+m_j)) 与按频段分桶的扫描线 O(N log N + K) 两种实现互相对照；冲突图统计 | 时频单元格集合求交（`validators.validate_detection`） |
 | 2 | 每计划恰选一动作（保持/频移/时移/撤销）的 0-1 模型：时频单元格 AtMostOne 约束 + 成对蕴含团约束 + 强制撤销割；七级词典序（撤销 A/B/C → 调整 A/B/C → 归一化幅度）用 CP-SAT 逐级求解，逐级加入由现任解导出的上界割并在整个词典序过程中保持现任解（MDR-0009，热启动来源见 MDR-0008）；HiGHS 独立建模逐级给出 LP 下界与限时 MILP；分离权重单目标（前置、独立热启动）与四种目标方案对照 | 逐计划合法性 + 单元格集合零冲突 + 重算表 1 与目标向量（`validate_resolution`） |
-| 3 | 以问题 2 方案为固定占用，在 100 × [0, T_end] 的自由单元中最大装填新增 C 类计划（变量 x_{f,s}，单元格 AtMostOne，max Σx）：贪心提示 + CP-SAT；上界：CP-SAT 界、HiGHS LP 界、HiGHS MILP 界、自由单元容量界、逐频段容量界 | 参数/边界/零冲突（`validate_packing`） |
+| 3 | 主解释（MDR-0005/0010-A）：以问题 2 方案为固定占用，在 100 × [0, T_end] 的自由单元中最大装填新增 C 类计划（变量 x_{f,s}，单元格 AtMostOne，max Σx）：贪心提示 + CP-SAT；上界：CP-SAT 界、HiGHS LP 界、HiGHS MILP 界、自由单元容量界、逐频段容量界。备选解释（MDR-0010-B，既有计划可任意平移）：首次适配重排给下界、面积守恒给上界 | 参数/边界/既有-既有、既有-新增、新增-新增零冲突（`validate_packing`）；重排另检查 w/d/g/n 不变与区域包含 |
 | 4 | 问题 2 模型 + C 类"间隔调整"动作 g'∈[g−10,g+10]∩[1,∞)；同一词典序目标；`compare` 阶段与问题 2 对照 | 同问题 2，另检查 g' 范围与仅 C 类使用 |
 
 求解预算（MDR-0008、MDR-0009）：CP-SAT 各级时限 [20, 20, 600, 300, 300, 300, 240] s、24 线程、固定种子；到时未证明最优的级以最好可行值固定并记录证明下界，论文按"值 / 下界 / 状态"如实报告；HiGHS 每级 LP 40 s、MILP 20 s；备选目标方案每级 30 s；分离权重单目标 180 s。
@@ -41,7 +41,11 @@
 - **关键数值**：新增数量 `QthreeNewPlans`；最紧上界 `QthreeUpperBound`、gap `QthreeGap`、是否最优 `QthreeOptimal`；候选位置数 `QthreeCandidates`、AtMostOne 约束数 `QthreeRows`、贪心下界 `QthreeGreedy`；CP-SAT 状态/值/界/用时（`QthreeCpsatStatus`、`QthreeCpsatValue`、`QthreeCpsatBound`、`QthreeCpsatSeconds`）；HiGHS LP 上界 `QthreeLpBound`（`QthreeLpValue`）、MILP `QthreeHighsStatus`/`QthreeHighsValue`/`QthreeHighsBound`；容量界 `QthreeFreeCellBound`（⌊自由单元/72⌋）、`QthreePerBandBound`、`QthreeEmptyRegionBound`（无既有计划时 ⌊100·T_end/72⌋）；利用率前后 `QthreeUtilBefore`、`QthreeUtilAfter`；自由单元 `QthreeFreeCells`。
 - **表**：`tab_q3_summary`（上界与解的对照）、`tab_q3_plans`（新增计划清单，附录）。**图**：`fig_q3_layout`（建议图注：问题 2 方案的既有计划（灰）与新增 C 类计划（绿）在时频平面上的布局）。
 - **验证**：`QthreeValidator` = 通过（参数、边界、与既有计划及彼此零冲突）。
-- **备选解释**：T_end 取原始计划最晚结束时刻（643）——当问题 2 方案的最晚结束时刻等于 643 时两者相同（本轮情形，`QthreeHorizon` = 643，故未产生 `QthreeAlt*` 键）；"允许既有计划再任意平移"的联合优化以容量界 `QthreeFreeCellBound`、`QthreeEmptyRegionBound` 作为上界讨论。
+- **备选解释 B（MDR-0010，重要）**：题目原文说"**如果不限制频段和时间的平移幅度**"，而新增装备本无"原位置"可平移，故该句更可能是允许**既有计划**不受 10Δf / 5Δt 限制地再次平移以腾出空间。本文以解释 A（既有计划固定）为主解释填写 `result3.xlsx`（模板只记录新增装备，无处记录既有计划的新位置），同时给出 B 的严格区间：
+  - **上界（对 A、B 同时成立）**：平移不改变任一计划占用的单元数，故被占用单元总数 S 为常数，新增数量 ≤ ⌊(100·T_end − S)/72⌋ = `QthreeFreeCellBound`（亦即 `QthreeAltRepackBound`）。
+  - **下界（构造）**：按占用单元数降序的"首次适配"重排既有计划（`repack_existing`，移动 `QthreeAltRepackMoved` 个计划、保持 w/d/g/n 不变），再在剩余自由单元上用同一 CP-SAT 装填模型求最大新增数 `QthreeAltRepackNewPlans`（状态 `QthreeAltRepackStatus`，贪心下界 `QthreeAltRepackGreedy`）；该布局经同一独立校验器复核（`QthreeAltRepackValidator`）。解释 A 的最优值本身也是 B 的下界。
+  - 表 `tab_q3_summary` 末行给出"下界 / 上界"；图 `fig_q3_repack`（建议图注：既有计划按首次适配重排后（灰）与在其上装填的新增 C 类计划（绿）；对照 `fig_q3_layout` 可见重排把既有计划压到低频段与早时刻，从而腾出大片连续自由区域）。
+- **备选解释（T_end 取法）**：T_end 取原始计划最晚结束时刻（643）——当问题 2 方案的最晚结束时刻等于 643 时两者相同，此时不产生 `QthreeAltHorizon` 等键。
 
 ## 4. 问题 4：允许 C 类调整间隔
 
