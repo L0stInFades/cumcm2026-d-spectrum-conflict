@@ -2,8 +2,12 @@
 
 本仓库的设计原则是“唯一计算面”：一切数据解析、数值计算、优化求解、测试、绘图、\LaTeX{} 排版与打包
 都在云端（Modal）执行，本地只负责编辑文本、提交任务、下载产物并核对 SHA-256。
-上表中 \texttt{paper} 一行显示为 \texttt{running}，是因为该表由 \texttt{paper} 阶段自身在编译前生成，
-其自身状态此刻尚未写入；其余阶段均已 \texttt{completed}。复现步骤如下：
+\textbf{关于上表的时序说明。}该表由 \texttt{paper} 阶段在编译本 PDF 之前生成，因此它记录的是\emph{那一刻}的运行状态：
+\texttt{paper} 一行显示为 \texttt{running}（其自身状态尚未写入），而 \texttt{qa}、\texttt{package}、\texttt{release}
+三个阶段按依赖顺序排在 \texttt{paper} 之后，其行要么缺失、要么是前一次编译循环留下的状态与输出摘要。
+这三行\emph{不应}被用作审计线索：交付物的权威记录是发布目录中的 \nolinkurl{release_manifest.json}
+（逐文件 SHA-256）与支撑材料内的 \nolinkurl{REPRODUCE.md}、\nolinkurl{MANIFEST.json}，它们都在 \texttt{paper} 之后生成。
+复现步骤如下：
 
 \begin{enumerate}[leftmargin=1.8em,itemsep=0.15em]
   \item 安装 Modal 客户端并完成鉴权后，在仓库根目录执行 \texttt{python3 tools/cli.py provision}
@@ -15,6 +19,10 @@
   \item 门禁与论文：\texttt{run lint,test} 与 \texttt{run paper,qa,package,release}。
   \item 下载与核对：\texttt{download -{}-stage <name>} 会逐文件核对 SHA-256；
         \texttt{release -{}-version <tag>} 生成交付目录与发布清单。
+  \item \textbf{不使用云端账号的复现路径}：支撑材料根目录的 \nolinkurl{tools/run_local.py} 调用同一批阶段函数，
+        只把云端卷换成本地目录。安装 \texttt{pandas numpy openpyxl pyarrow networkx matplotlib ortools highspy} 后执行
+        \texttt{python3 tools/run\_local.py -{}-quick}，数分钟内得到四个结果工作簿与全部图表；
+        去掉 \texttt{-{}-quick} 则使用与本文相同量级的求解预算。排版阶段需另行安装 \TeX{} Live 与中文字体。
 \end{enumerate}
 各阶段的确切参数（求解器线程数、逐级时限）记录在仓库的运行手册中，也记录在每个阶段的 \nolinkurl{manifest.json} 内。
 
