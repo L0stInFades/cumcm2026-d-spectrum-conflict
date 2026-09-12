@@ -612,6 +612,57 @@ def tables(ctx: StageContext) -> dict[str, Any]:
     plans = _plans(ctx.dep_data("detect", "plans.json"))
     stats = ctx.dep_data("detect", "stats.json")
     conflicts = ctx.dep_data("detect", "conflicts.json")
+
+    # Given data, per category. The table asserts homogeneity instead of assuming it, so that the
+    # paper may quote one (w, d, g, n) per class only when every plan of that class really shares it.
+    data_rows = []
+    for cat in CATEGORIES:
+        group = [p for p in plans if p.cat == cat]
+        if not group:
+            continue
+        shapes = {(p.w, p.d, p.g, p.n) for p in group}
+        if len(shapes) != 1:
+            raise RuntimeError(f"category {cat} is not homogeneous: {sorted(shapes)}")
+        head = group[0]
+        data_rows.append(
+            [
+                f"{cat} 类",
+                len(group),
+                head.w,
+                head.d,
+                head.g,
+                head.n,
+                head.period,
+                head.d + (head.n - 1) * head.period,
+                head.n_cells,
+                len(group) * head.n_cells,
+            ]
+        )
+        ctx.number(f"DataPlans{cat}", len(group))
+        ctx.number(f"DataWidth{cat}", head.w)
+        ctx.number(f"DataDuration{cat}", head.d)
+        ctx.number(f"DataGap{cat}", head.g)
+        ctx.number(f"DataUses{cat}", head.n)
+        ctx.number(f"DataCells{cat}", head.n_cells)
+    _write_table(
+        ctx,
+        "tab_data",
+        [
+            "类别",
+            "装备数",
+            "频宽 w",
+            "时长 d",
+            "间隔 g",
+            "次数 n",
+            "周期 d+g",
+            "时间跨度",
+            "单计划单元数",
+            "该类单元合计",
+        ],
+        data_rows,
+        align="lrrrrrrrrr",
+    )
+
     _write_table(
         ctx,
         "tab_q1_summary",
