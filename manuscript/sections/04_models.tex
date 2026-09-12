@@ -105,17 +105,17 @@ $\valQoneIsolatedPlans$ 个完全不与任何其他计划冲突。全部结果�
 时间上稀疏；B 类频宽最大（$\valDataWidthB$ 个频段，为三类之最）因而在频域上“挡住”了最多的对手；
 C 类数量最多（$\valDataPlansC$ 个）且使用次数最多（$\valDataUsesC$ 次），在时域上最密。
 换言之，\textbf{冲突主要产生在“频域宽”的 B 类与“时域密”的 C 类之间}——这一判断在第~\ref{sec:sens} 节的
-灵敏度分析中得到独立印证（放宽频段平移上限的收益约为放宽时间平移上限的两倍）。
+灵敏度分析中得到独立印证（按单位增量折算，放宽频段平移上限的收益约为放宽时间平移上限的 $\valSensElasticityRatio$ 倍，第~\ref{sec:sens} 节）。
 
 从图论看，冲突图 $G$ 有 $\valQoneComponents$ 个规模不小于 $2$ 的连通分量，其规模为 $\valQoneLargestComponent$：
 \textbf{几乎所有卷入冲突的计划连成一片}。这一点对建模至关重要——它意味着不能把问题拆成若干独立的小块分别求解，
 必须在全局上一次性消解。同时 $G$ 很稀疏（密度 $\valQoneDensity$，平均度 $\valQoneMeanDegree$，最大度 $\valQoneMaxDegree$，
-度最大者为 $\valQoneTopDegreeId$，附录表~\ref{tab:q1deg}），这提示“局部让路”的空间是存在的：
+共 $\valQoneTopDegreeCount$ 个装备达到（$\valQoneTopDegreeIds$，附录表~\ref{tab:q1deg}）），这提示“局部让路”的空间是存在的：
 每个计划平均只需避开 $\valQoneMeanDegree$ 个对手。图~\ref{fig:q1gantt} 与图~\ref{fig:q1structure} 给出时频平面的全局图景与冲突结构。
 
 \paperfigure[0.88\linewidth]{fig_q1_gantt}{附件 1 中 $\valQonePlans$ 个用频计划在时频平面上的甘特图。
 横轴为时间（$\Delta t$），纵轴为频段编号（$\Delta f$）；每个矩形为一个计划的一次使用，
-颜色区分 A（蓝）、B（橙）、C（绿）三类装备；黑色描边标出参与冲突的 $\valQoneUsePairs$ 个使用次。
+颜色区分 A（蓝）、B（橙）、C（绿）三类装备；黑色描边标出参与冲突的 $\valQoneConflictUses$ 个使用次（它们构成 $\valQoneUsePairs$ 对相交的使用次）。
 全区域 $\valQoneCellsTotal$ 个时频单元中 $\valQoneCellsOccupied$ 个被占用（$\valQoneOccupancyPercent\%$），
 其中 $\valQoneCellsOverlap$ 个被两个及以上计划同时占用。}{fig:q1gantt}
 
@@ -622,6 +622,10 @@ C 类计划的周期为 $\pi_C=d_C+g_C=\valDataDurationC+\valDataGapC$，单次�
 
 \section{问题四：允许 C 类装备调整用频间隔}
 \label{sec:q4}
+
+\noindent\textbf{本节回答}：若允许部分 C 类装备把用频间隔调整不超过 $\Gamma=10$ 个 $\Delta t$，冲突消解能改善多少？
+结论是在不增加时频资源（$e_i\le\valQfourHorizonCap$）的前提下，撤销数由 $\valQtwoCancelTotal$ 降到 $\valQfourCancelTotal$，
+代价是多调整 $\valQfourAdjustDelta$ 个计划；A、B 两类仍一个未撤。本节先给动作集合的扩张，再给结果、资源守恒约束与对照。
 
 \subsection{动作集合的扩张}
 
