@@ -1,1 +1,72 @@
-（模型评价与推广待撰写：优点、局限、改进方向。）
+\label{sec:eval}
+
+\subsection{模型的优点}
+
+\begin{enumerate}[leftmargin=1.8em,itemsep=0.25em]
+  \item \textbf{统一的单元格语言}。四个问题——检测、消解、增容、放宽间隔——被统一到“时频单元集合是否相交”
+        这一个判据上（命题~\ref{prop:cell}、\ref{prop:exact}）。这既使模型精确（单元约束是无冲突的\emph{充要}编码，
+        不是近似或松弛），又使校验独立（同一判据的另一种算法实现即构成校验器）。
+  \item \textbf{可证明的部分被明确证明}。问题 2 撤销层的全局最优性（定理~\ref{thm:q2opt}）与问题 3 的最优性
+        （定理~\ref{thm:q3}）都给出了闭合的对偶间隙，后者更由三个独立上界同时确认。
+        推论~\ref{cor:nozero} 直接回答了“能否一个都不撤销”这一自然追问。
+  \item \textbf{未证明的部分被诚实标注}。调整各级只报告“值 / 证明下界 / 状态”（表~\ref{tab:q2solver}、\ref{tab:q4solver}），
+        不作最优性声明。现任解上界割（命题~\ref{prop:cut}）在数学上保证报告值不劣于任何已知可行解，
+        从而消除了“交叉验证击败主解”这类自相矛盾。
+  \item \textbf{主观选择被量化}。目标函数的形式化是本文最主观的一步，四方案对照（表~\ref{tab:q2schemes}）
+        把“优先级条款值多少”变成了可以看见的数字：坚持不撤销 A、B 类计划的代价，
+        是撤销总数从 $\valQtwoSchemeTCancelTotal$ 上升到 $\valQtwoSchemePCancelTotal$。
+  \item \textbf{题意歧义被正面处理}。问题 3 的两种读法给出相差约五倍的答案，本文不回避，
+        而是以模板一致性为准选定主解释，并为另一解释给出可核查的区间式~\eqref{eq:bracket}。
+  \item \textbf{结果可复现}。全部计算在同一次云端运行中完成，每个数字都由阶段产物自动注入论文，
+        每个阶段记录代码版本、参数与输入输出的 SHA-256（附录~\ref{app:repro}）。
+\end{enumerate}
+
+\subsection{模型的局限}
+
+\begin{enumerate}[leftmargin=1.8em,itemsep=0.25em]
+  \item \textbf{调整层的最优性未闭合}。问题 2 的调整三级与幅度级、问题 4 的撤销 C 级均未证明最优
+        （$\valQtwoAllOptimal$、$\valQfourAllOptimal$）。其间隙较宽，主要原因是线性松弛在装填型约束上很弱
+        （撤销级的 LP 下界为 $0$）。改进方向是加入更强的有效不等式（如基于冲突图团的覆盖不等式）或列生成。
+  \item \textbf{问题 3 的答案依赖于具体的问题 2 方案}。定理~\ref{thm:q3} 的 $\valQthreeNewPlans$ 是
+        “在本文这一个无冲突方案之上”的最大值。由引理~\ref{lem:tiling}，可装填数量主要取决于既有布局与相位划分的
+        \emph{对齐程度}，而非自由单元的\emph{总数}——因此不同的问题 2 最优解会给出不同的答案。
+        若要回答“跨所有无冲突方案的最大值”，需把问题 2 与问题 3 合并为一个联合优化，规模将显著增大。
+  \item \textbf{问题 4 的方案延长了时间范围}。间隔变长把最后一次使用推后，最晚结束时刻由 $\valQtwoHorizonAfter$
+        增至 $\valQfourHorizonAfter$（第~\ref{sec:q4horizon} 节）。题目未对问题 4 提出“不增加时频资源”的要求，
+        但若按此理解，应加入硬约束 $e_i\le\valQtwoHorizonAfter$ 重解；该变体本文未做。
+  \item \textbf{离散化与动作集合是题目给定的}。$\Delta f$、$\Delta t$ 的粒度、“只改一个参数”的限制、
+        平移幅度上限均为外生。连续化模型、多参数联合调整、功率或方向性维度都未建模。
+  \item \textbf{物理层机制未建模}（假设~\ref{as:indep}）。真实电磁兼容需要保护带、空间隔离、
+        互调与杂散抑制等；本文的“冲突”是纯几何的。好在模型对此是\emph{可扩展}的：
+        只需把 $U(P)$ 沿频率（或时间）方向膨胀一个保护宽度，全部命题与算法原样成立，只是冲突对数会上升。
+  \item \textbf{大规模的可证明最优性未验证}。合成实例在固定时限下只达到可行解（$\valBenchScaleAllOptimal$）。
+\end{enumerate}
+
+\subsection{模型的推广}
+
+\paragraph{（一）带保护带的冲突判据。}把频段方向的占用由 $[f,f+w)$ 膨胀为 $[f-\rho,\,f+w+\rho)$
+（$\rho$ 为保护频段数），时间方向同理膨胀为收发转换时间，命题~\ref{prop:cell}--\ref{prop:exact} 与全部算法不变。
+这使模型可直接用于真实的频谱指配。
+
+\paragraph{（二）在线与滚动消解。}实际用频计划是陆续提报的。把已批准的计划视为固定占用、
+新提报的计划视为待放置对象，问题即退化为问题 3 的装填模型；若允许有限次回溯调整，
+则是问题 2 模型在小邻域上的重解。由于检测是亚秒级的（表~\ref{tab:benchscaling}），
+在线判定完全可以实时完成。
+
+\paragraph{（三）鲁棒性与不确定性。}若计划的起始时刻带有抖动 $\pm\epsilon$，
+可把每次使用的时间区间膨胀 $\epsilon$ 后重解，得到“对抖动免疫”的方案；
+方案的代价随 $\epsilon$ 的增长曲线正是第~\ref{sec:sens} 节灵敏度分析的变体。
+
+\paragraph{（四）同类问题。}本文的“每个对象恰选一个位置、位置之间不得共享资源单元、
+按优先级词典序最优”的结构，同样适用于会议室与航班时刻分配、光网络波长指配、
+数据中心作业的时间--机架放置等问题；单元格 AtMostOne 编码与现任解保持的词典序搜索可原样迁移。
+
+\subsection{给用频管理部门的建议}
+
+基于本文的定量结果，提出三条建议：
+\textbf{其一}，适度放宽频段调整权限比增加带宽更有效——把最大频段平移幅度由 $10\Delta f$ 提高到 $15\Delta f$，
+即可把必须撤销的计划数从 $\valSensBaseCancelTotal$ 降为 $\valSensMinCancelTotal$（第~\ref{sec:sens} 节）；
+\textbf{其二}，允许 C 类装备微调用频间隔是低成本的松弛——它把撤销数从 $\valQtwoCancelTotal$ 降到 $\valQfourCancelTotal$
+（表~\ref{tab:q4compare}），但需注意其代价是时间范围延长 $\valQfourHorizonDelta\Delta t$；
+\textbf{其三}，若提报时能引导 C 类装备按引理~\ref{lem:tiling} 的相位错开（首次时刻相差 $d_C$ 的整数倍），
+同一频带的利用率可接近 $100\%$，从源头上减少冲突。

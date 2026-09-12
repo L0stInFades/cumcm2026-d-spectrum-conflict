@@ -1,1 +1,137 @@
-（模型检验待撰写：收敛性 / 独立校验 / 稳定性 / 灵敏度与不确定性分析。）
+组合优化的结果不能只靠“求解器说它是最优的”来支撑。本节按五条独立的证据线检验本文的模型与结果：
+\textbf{（一）}与求解器代码分离的可行性校验；\textbf{（二）}算法之间的交叉验证；
+\textbf{（三）}最优性的证明与界；\textbf{（四）}穷举对照与确定性；\textbf{（五）}灵敏度与可扩展性。
+每一条都给出可核查的产物，并\emph{明确区分“已证明”与“已知最好”}。
+
+\subsection{与求解器分离的独立校验}
+\label{sec:validation}
+
+本文实现了一套\textbf{独立校验器}，它刻意不复用检测与求解的任何代码：
+对给定的一组计划，它按定义~\eqref{eq:cells} 把每个计划\emph{显式展开}为时频单元的集合，
+再用集合求交逐对判断冲突。这是命题~\ref{prop:cell} 的“另一侧”——区间算术与集合展开是同一事实的两种算法实现，
+二者一致才说明实现正确，而不是同一段代码自证。
+
+\begin{table}[htbp]
+\centering\small
+\caption{四个问题的独立校验结论。校验器与检测/求解代码分离，按定义展开时频单元集合并用集合求交复核。}
+\label{tab:validation}
+\setlength{\tabcolsep}{4pt}
+{\footnotesize\input{generated/tables/tab_validation.tex}}
+\end{table}
+
+校验内容逐题不同：问题 1 复核冲突对集合（真值 $\valQoneConflictPairs$ 对，缺失 $0$、多余 $0$）；
+问题 2、4 逐计划检查“恰有一个动作”、“调整后与原计划恰有一个参数不同”、
+$|\delta|\le\Phi$、$|\tau|\le\mathcal{T}$、$|\Delta g|\le\Gamma$、$g'\ge 1$ 与边界条件，
+再对存留计划做零冲突扫描，并\emph{重新计算}表~\ref{tab:q2table1}、\ref{tab:q4table1} 与目标向量与求解器报告比对；
+问题 3 检查新增计划的参数、区域包含性，以及“既有--既有”、“既有--新增”、“新增--新增”三类零冲突。
+四个校验全部通过（表~\ref{tab:validation}：$\valQoneValidator$、$\valQtwoValidator$、$\valQthreeValidator$、$\valQfourValidator$），
+备选解释 B 的重排布局亦通过同一校验（$\valQthreeAltRepackValidator$，另加“$w,d,g,n$ 不变”的参数不变性断言）。
+\textbf{结果工作簿在四个校验全部通过之前不会被写出}——这是流水线中的硬门禁。
+
+\subsection{算法之间的交叉验证}
+
+\paragraph{两种检测算法。}成对枚举（算法~\ref{alg:pairwise}）与按频段分桶的扫描线给出\emph{完全相同}的
+$\valQoneConflictPairs$ 对冲突；在 $n=\valBenchScaleMinN,\dots,\valBenchScaleMaxN$ 的合成实例上二者也始终一致
+（$\valBenchScaleDetectorsAgree$，附录表~\ref{tab:benchscaling}）。加上第~\ref{sec:validation} 节的单元集合校验器，
+问题 1 的答案由三种互不相同的算法共同确认。
+
+\paragraph{两个求解器。}本文用 HiGHS\cite{huangfu2018} 对问题 2、4 的模型\emph{独立建模}（0--1 线性规划形式），
+逐级给出线性松弛下界与限时 MILP 结果。在 HiGHS 自身证明最优的每一级上，其值与 CP-SAT 完全一致
+（$\valQtwoHighsAgree$、$\valQfourHighsAgree$）。问题 3 更进一步：CP-SAT 对偶界、HiGHS 线性松弛界与 HiGHS MILP 界
+\emph{三者同时等于} $\valQthreeNewPlans$（表~\ref{tab:q3summary}）。
+
+\paragraph{两种标量化。}命题~\ref{prop:weights} 给出词典序的等价单目标形式。本文以此做第二次独立搜索
+（不以词典序解热启动，而以仓库内的现任解热启动）：问题 2 返回了与逐级求解\emph{相同}的目标向量（$\valQtwoWeightedAgree$）。
+问题 4 则\emph{未能}复现（$\valQfourWeightedAgree$）——单次加权求解只回到一个更差的向量。
+本文如实报告这一点：它不是矛盾（词典序解严格更优，且由命题~\ref{prop:cut} 永不劣于任何已知可行解），
+而是说明在该规模上逐级求解强于单次加权求解。
+
+\paragraph{诚实的界定。}需要指出：两种标量化都以同一个现任解为起点，因此问题 2 的“一致”主要说明
+\emph{两条独立的搜索路径都没有找到更好的解}，而不等于独立地\emph{证明}了最优性。
+本文的最优性证据只有一个来源——表~\ref{tab:q2solver}、\ref{tab:q4solver}、\ref{tab:q3summary} 中的“证明下界”一列。
+
+\subsection{最优性：已证明的与未证明的}
+
+本文对最优性的声明严格限定在求解器闭合了对偶间隙的层级上：
+
+\begin{itemize}[leftmargin=1.6em,itemsep=0.2em]
+  \item \textbf{已证明最优}：问题 2 的撤销三级 $(\valQtwoValueCancela,\valQtwoValueCancelb,\valQtwoValueCancelc)$
+        （定理~\ref{thm:q2opt}，三级状态均为 \textsf{OPTIMAL}，值与证明下界相等）；
+        问题 4 的撤销 A、B 两级（均为 $0$，状态 \textsf{OPTIMAL}）；
+        问题 3 的 $\valQthreeNewPlans$（定理~\ref{thm:q3}，三个独立上界同时等于解值，间隙 $\valQthreeGap$）。
+  \item \textbf{已知最好但未证明最优}：问题 2 的调整三级与幅度级（$\valQtwoAllOptimal$）；
+        问题 4 的撤销 C 级与其后各级（$\valQfourAllOptimal$）。它们的真实最优值落在表~\ref{tab:q2solver}、\ref{tab:q4solver}
+        给出的 $[\underline{v}_k,\,v_k]$ 区间内。
+\end{itemize}
+
+由命题~\ref{prop:cut}，现任解上界割不改变任何一级的最优值，因此上述“已证明”的层级确实是全局最优；
+同时该割保证报告向量在词典序上永不劣于任何已知可行解，故\emph{未证明}的层级至少不会比先前任何一次搜索更差。
+线性松弛下界在本模型上很弱（表~\ref{tab:q2solver} 中撤销级的 LP 下界为 $0$），这是装填型约束的典型现象：
+分数解可以把每个计划“摊薄”到多个动作上而不违反任何单元约束。因此紧的界只能来自 CP-SAT 的组合推理。
+
+\subsection{穷举对照与确定性}
+
+最优性证据之外，还需检验\emph{求解器被正确使用}——目标是否真的按词典序最小化了、
+约束是否真的编码了“无冲突”。为此本文构造 $\valBenchTinyInstances$ 个随机微型实例（计划数 $\le 6$、动作集合缩小），
+对每个实例\emph{枚举全部动作组合}（最多 $\valBenchTinyMaxCombinations$ 种）直接求出词典序最优向量，
+再与本文求解器的结果比对：\textbf{$\valBenchTinyAgree/\valBenchTinyInstances$ 全部一致}（$\valBenchTinyAllAgree$，附录表~\ref{tab:benchtiny}）。
+同样的实例用相同随机种子重复求解，$\valBenchTinyDeterministic/\valBenchTinyInstances$ 给出完全相同的解（$\valBenchTinyAllDeterministic$）。
+
+\textbf{局限}：确定性只在微型实例上检验过。$\valQonePlans$ 个计划的完整模型单次求解需数十分钟，
+本文未做重复求解，故 $\valQonePlans$ 规模上的确定性记为“$\valQtwoDeterministic$”。
+由于 CP-SAT 的多线程搜索在固定种子下仍可能受线程调度影响，大规模模型的位对位可复现性不应被假定；
+但本文的\emph{结论}不依赖于此——撤销层的最优性由证明下界保证，与是否得到同一个最优解无关。
+
+\subsection{灵敏度分析}
+\label{sec:sens}
+
+\begin{table}[htbp]
+\centering\small
+\caption{消解方案对最大平移幅度 $(\Phi,\mathcal{T})$ 的灵敏度。第四行 $(10,5)$ 为题目给定值，即正文的问题 2 主结果。
+每个情形的解都通过了独立校验（$\valSensAllValid$）。}
+\label{tab:sens}
+\setlength{\tabcolsep}{5pt}
+\input{generated/tables/tab_sensitivity.tex}
+\end{table}
+
+题目把最大平移幅度定为 $(\Phi,\mathcal{T})=(10,5)$，但未说明这一取值的来源，故它是最值得做灵敏度分析的参数。
+本文在 $\valSensCases$ 组取值上重解同一模型（表~\ref{tab:sens}、图~\ref{fig:sens}），得到三条结论：
+
+\begin{enumerate}[leftmargin=1.8em,itemsep=0.2em]
+  \item \textbf{撤销数量对频段平移上限极其敏感。}把 $\Phi$ 由 $10$ 放宽到 $15$，撤销数由 $\valSensBaseCancelTotal$
+        直接降到 $\valSensMinCancelTotal$——\emph{一个计划都不必撤销}；反之收紧到 $\Phi=5$，撤销数升至
+        $\valSensMaxCancelTotal$。这再次印证第~\ref{sec:q1} 节的判断：
+        \textbf{撤销源于局部拥塞与幅度上限，而非资源总量不足}。
+  \item \textbf{频域比时域更“贵”。}把两个上限分别放宽，可以定量比较二者的作用：
+        $\Phi$ 由 $5$ 增至 $10$（$\mathcal{T}$ 固定）使撤销数减少约三十个；
+        而 $\mathcal{T}$ 由 $2$ 增至 $5$（$\Phi$ 固定）只减少约十余个。
+        \textbf{频域放宽的效果约为时域的两倍}——这与问题 1 中“B--C 类冲突占六成以上、而 B 类频宽最大”的统计一致。
+  \item \textbf{一条有实际价值的管理建议。}若能把最大频段平移幅度由 $10\Delta f$ 放宽到 $15\Delta f$，
+        代价仅是多调整一个计划、归一化总幅度由 $\valQtwoAmplitude$ 升至表~\ref{tab:sens} 第五行所示的水平，
+        却可以\emph{完全避免撤销}。
+        对用频管理部门而言，这意味着“适度放宽频段调整权限”比“增加带宽”更具性价比。
+\end{enumerate}
+
+\paperfigure[0.94\linewidth]{fig_sensitivity}{消解方案对最大平移幅度的灵敏度。(a) 被调整（按类别堆叠）与被撤销（黑）的计划数；
+(b) 归一化总调整幅度。频段平移上限由 $10\Delta f$ 放宽到 $15\Delta f$ 时撤销数降为 $\valSensMinCancelTotal$，
+收紧到 $5\Delta f$ 时升至 $\valSensMaxCancelTotal$，说明冲突主要源于频域拥塞。}{fig:sens}
+
+\paragraph{单调性检查及其有效范围（诚实说明）。}动作集合更大的情形其最优向量应当不劣于基准，
+更小的情形应当不优于基准；该检查通过（$\valSensMonotone$）。但必须指出：自现任解保持算法引入后，
+动作集合\emph{更大}的情形（$(15,5)$、$(20,10)$）中基准解本身可行，会成为现任解并给出上界割，
+因而其“不劣于基准”是\emph{由构造保证}的，不再是独立检验；只有动作集合\emph{更小}的情形
+（$(5,2)$、$(5,5)$、$(10,2)$）中基准解一般不可行、不产生割，其“不优于基准”仍是真正的检验。
+
+\paragraph{其他不确定性来源。}目标函数的形式化（假设~\ref{as:lex}）由四方案对照量化（表~\ref{tab:q2schemes}、
+附录表~\ref{tab:q4schemes}）；问题 3 的题意歧义由解释 A 与 B 的区间式~\eqref{eq:bracket} 量化；
+$T_{\mathrm{end}}$ 的两种取法（问题 2 方案的最晚结束时刻与原始计划的最晚结束时刻）在本实例中相同
+（均为 $\valQtwoHorizonAfter$），故不产生差异。
+
+\subsection{可扩展性}
+
+附录表~\ref{tab:benchscaling} 与图~\ref{fig:benchscaling} 给出 $n=\valBenchScaleMinN,\dots,\valBenchScaleMaxN$ 的
+合成实例基准。两种检测算法均为亚秒级（最大 $\valBenchScaleMaxPairwiseSeconds$ s 与 $\valBenchScaleMaxSweepSeconds$ s），
+说明\textbf{检测不是瓶颈}；消解模型的变量数与约束数随 $n$ 近似线性增长。
+\textbf{局限}：在固定 $120$ s 时限下，全部合成实例的求解状态均为 \textsf{FEASIBLE}
+（$\valBenchScaleAllOptimal$），即\emph{本文没有证据表明该方法在更大规模上仍能证明最优}。
+这与问题的 NP-难性（命题~\ref{prop:nphard}）一致：可扩展的是建模与求可行解，不是证明最优性。

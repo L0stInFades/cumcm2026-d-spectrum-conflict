@@ -1,5 +1,34 @@
-% 摘要：问题背景一句、方法主线、关键结果（数值来自 \val 宏）、结论与检验结论。整页不得溢出。
-本文针对时频冲突检测与消解建立数学模型。（摘要待撰写：研究对象与问题；方法主线；关键量化结果；检验与结论。）
+本文研究有限带宽下大量用频计划的时频冲突检测与消解。把每个用频计划展开为它在“频段$\times$时隙”栅格上占用的
+\emph{时频单元集合}，则“冲突”等价于两集合相交、“无冲突”等价于诸集合两两不交。这一刻画把四个问题统一为同一语言，
+并使每个结果都能被一个\emph{与求解器代码完全分离}的校验器复核。
 
-\par\vspace{0.6em}
-\noindent\textbf{关键词：}（待补充）
+\textbf{问题 1} 由半开区间判据给出精确检测：成对枚举（双指针归并）与按频段分桶的扫描线两种算法独立实现，
+输出完全一致。$\valQonePlans$ 个计划中检出 $\valQoneConflictPairs$ 对冲突，涉及 $\valQonePlansInConflict$ 个计划、
+$\valQoneUsePairs$ 对相交的使用次；冲突图只有 $\valQoneComponents$ 个连通分量（规模 $\valQoneLargestComponent$）却很稀疏
+（平均度 $\valQoneMeanDegree$、密度 $\valQoneDensity$）；B--C 类冲突占六成以上。
+时频单元占用率仅 $\valQoneOccupancyPercent\%$，表明\textbf{冲突源于局部拥塞而非资源总量不足}。
+
+\textbf{问题 2} 建立 0--1 规划：每个计划恰选一个动作（保持 / 频移 / 时移 / 撤销），
+以“覆盖同一时频单元的变量至多取一”作为无冲突的\emph{充要}编码，并按题目优先级构造七级词典序目标
+（撤销 A/B/C $\to$ 调整 A/B/C $\to$ 归一化幅度）。求解采用现任解保持的逐级搜索：每级加入由可行现任解导出的上界割，
+该割不删去任何最优解，却保证报告值永不劣于任何已知可行解。结果为保留 $\valQtwoKeepTotal$、调整 $\valQtwoAdjustTotal$、
+撤销 $\valQtwoCancelTotal$，且\textbf{撤销的全部是 C 类，A、B 类一个未撤}。撤销三级 $\valQtwoValueCancela/\valQtwoValueCancelb/\valQtwoValueCancelc$
+经 CP-SAT 闭合对偶间隙，为\textbf{已证明的全局最优}；由此直接得到推论：在不撤销 A、B 类的前提下“零撤销”不可行。
+调整各级未闭合间隙，本文只报告“值 / 证明下界 / 状态”，不作最优性声明。
+
+\textbf{问题 3} 归结为二维集合装填。指出题干“不限制平移幅度”存在实质歧义：既有计划固定（解释 A）
+与既有计划亦可重排（解释 B）。以 A 为主解释（与结果模板一一对应、可独立复核），得最多再安排
+$\boldsymbol{\valQthreeNewPlans}$ 个 C 类装备，且 CP-SAT 对偶界、HiGHS 线性松弛界与 MILP 界\textbf{三者同时等于 $\valQthreeNewPlans$}，
+间隙为 $\valQthreeGap$，利用率由 $\valQthreeUtilBefore\%$ 升至 $\valQthreeUtilAfter\%$；
+对解释 B 则由面积守恒给上界、由首次适配重排给构造下界，得区间 $[\valQthreeAltRepackNewPlans,\ \valQthreeAltRepackBound]$。
+
+\textbf{问题 4} 为 C 类增加“改间隔”动作后重解同一模型：撤销数由 $\valQtwoCancelTotal$ 降至 $\valQfourCancelTotal$（降幅四分之一），
+代价是多调整 $\valQfourAdjustDelta$ 个计划、且时间范围延长 $\valQfourHorizonDelta\Delta t$——本文明确指出并讨论了这一代价。
+
+\textbf{检验}：四个独立校验器全部通过（零剩余冲突）；$\valBenchTinyInstances$ 个随机微型实例与穷举最优
+$\valBenchTinyAgree/\valBenchTinyInstances$ 一致；两个求解器、两种标量化交叉验证。
+灵敏度分析给出一条有实用价值的结论：把最大频段平移幅度由 $10\Delta f$ 放宽到 $15\Delta f$，
+撤销数即由 $\valSensBaseCancelTotal$ 降为 $\valSensMinCancelTotal$，且频域放宽的效果约为时域的两倍。
+
+\par\vspace{0.5em}
+\noindent\textbf{关键词：}时频冲突检测；冲突图；词典序整数规划；约束规划（CP-SAT）；二维集合装填；最优性界

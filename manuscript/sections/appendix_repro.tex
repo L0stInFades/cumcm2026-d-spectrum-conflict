@@ -1,1 +1,39 @@
-复现步骤：安装 Modal 客户端并登录后，在仓库根目录依次执行 \nolinkurl{python3 tools/cli.py provision}、\nolinkurl{python3 tools/cli.py run ingest,validate --new-run}、各科学阶段、\nolinkurl{python3 tools/cli.py run lint,test,paper,qa,package,release}。每个阶段目录下的 \nolinkurl{manifest.json} 记录输入输出散列、参数与环境。
+\subsection{复现步骤}
+
+本仓库的设计原则是“唯一计算面”：一切数据解析、数值计算、优化求解、测试、绘图、\LaTeX{} 排版与打包
+都在云端（Modal）执行，本地只负责编辑文本、提交任务、下载产物并核对 SHA-256。复现步骤如下：
+
+\begin{enumerate}[leftmargin=1.8em,itemsep=0.15em]
+  \item 安装 Modal 客户端并完成鉴权后，在仓库根目录执行 \nolinkurl{python3 tools/cli.py provision}
+        验证云端工具链（\TeX{} Live、中文字体、CP-SAT、HiGHS）。
+  \item 数据接入与契约校验：\nolinkurl{python3 tools/cli.py run ingest,validate,detect --new-run --size small}。
+  \item 两个重阶段分离运行（各约 $40$ 分钟）：\nolinkurl{run resolve --size large --spawn} 与
+        \nolinkurl{run resolve_interval --size large --spawn}，随后 \nolinkurl{wait <ID>} 或轮询 \nolinkurl{status}。
+  \item 其余科学阶段：\nolinkurl{run pack,bench,sensitivity --size large}，再 \nolinkurl{run compare,results,figures,tables}。
+  \item 门禁与论文：\nolinkurl{run lint,test} 与 \nolinkurl{run paper,qa,package,release}。
+  \item 下载与核对：\nolinkurl{download --stage <阶段>} 会逐文件核对 SHA-256；
+        \nolinkurl{release --version <tag>} 生成交付目录与发布清单。
+\end{enumerate}
+
+各阶段的确切参数（求解器线程数、逐级时限）记录在仓库的运行手册中，也记录在每个阶段的 \nolinkurl{manifest.json} 内。
+
+\subsection{可复现性的保证}
+
+\begin{itemize}[leftmargin=1.6em,itemsep=0.15em]
+  \item \textbf{固定输入}：题目 PDF 与附件在仓库中原样保存，\nolinkurl{ingest} 阶段记录其 SHA-256，任何代码不得改写。
+  \item \textbf{固定环境}：容器镜像的依赖版本固定；每个阶段的 \nolinkurl{manifest.json} 记录 Python 版本、
+        平台、CPU 数与全部包版本。
+  \item \textbf{固定随机源}：所有随机性经统一的种子接口派生，求解器的随机种子固定。
+  \item \textbf{固定热启动}：词典序求解的现任解提示保存在仓库的 \nolinkurl{configs/hints/} 中
+        （附带来源 run、代码版本与目标向量）。由命题~\ref{prop:cut}，带提示重跑所得向量在词典序上不会劣于提示，
+        因此本文结果可由仓库直接复现。提示只影响搜索起点，不改变可行域，也不改变任何一级的最优值。
+  \item \textbf{数字的单一来源}：论文正文不允许手工键入结果数字；每个数值或来自阶段登记的宏，
+        或来自 \nolinkurl{tables} 阶段生成的表格文件。若两个阶段登记了同名而不同值的数字，论文构建会报告冲突并由质检门禁拦截。
+\end{itemize}
+
+\subsection{已知的不确定性}
+
+$\valQonePlans$ 个计划的完整模型采用多线程求解，单次求解耗时数十分钟，本文未做重复求解以验证位对位的确定性
+（记为“$\valQtwoDeterministic$”）；微型实例上的确定性检验为 $\valBenchTinyDeterministic/\valBenchTinyInstances$ 通过。
+需要强调：本文\emph{已证明最优}的结论（定理~\ref{thm:q2opt}、\ref{thm:q3}）由求解器的证明下界保证，
+与是否复现出同一个最优解无关；\emph{未证明最优}的层级则本就以区间形式报告。

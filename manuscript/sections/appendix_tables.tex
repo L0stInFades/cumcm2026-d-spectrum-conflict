@@ -1,0 +1,85 @@
+本附录收录正文中引用但因篇幅置于此处的完整表格。全部表格由 \nolinkurl{tables} 阶段生成
+（\nolinkurl{.tex} 与同名 \nolinkurl{.csv} 并存），数值与结果工作簿一致。
+
+\subsection{问题 1：全部冲突对}
+
+\needspace{5\baselineskip}
+\captionof{table}{问题 1 检测出的全部 $\valQoneConflictPairs$ 对时频冲突（按装备编号字典序，与 \nolinkurl{result1.xlsx} 一致）。
+“冲突使用次对数”为该计划对中发生时间重叠的使用次对数，“频段重叠宽度”以 $\Delta f$ 计。}
+\label{tab:q1conflicts}
+{\footnotesize\input{generated/tables/tab_q1_conflicts.tex}}
+
+\subsection{问题 2：被撤销计划与逐计划动作}
+
+\begin{table}[htbp]
+\centering\small
+\caption{问题 2 中被撤销计划的局部环境。“冲突邻居数”为该计划在冲突图中的度，
+“其中 A/B 类”为这些邻居中高优先级装备的个数，“可用平移动作数”为式~\eqref{eq:options} 中该计划的合法平移动作数。
+每个被撤销的计划都被高优先级邻居包围，这正是它们不得不让路的原因。}
+\label{tab:q2cancel}
+\input{generated/tables/tab_q2_cancelled.tex}
+\end{table}
+
+\needspace{5\baselineskip}
+\captionof{table}{问题 2 的逐计划动作清单（只列出被调整或被撤销的计划，与 \nolinkurl{result2.xlsx} 一致）。}
+\label{tab:q2adj}
+{\footnotesize\input{generated/tables/tab_q2_adjustments.tex}}
+
+\subsection{问题 3：新增计划清单}
+
+\needspace{5\baselineskip}
+\captionof{table}{问题 3 在解释 A 下新增的 $\valQthreeNewPlans$ 个 C 类用频计划（与 \nolinkurl{result3.xlsx} 一致；
+间隔时长与使用次数按假设~\ref{as:pack} 与附件 C 类相同）。}
+\label{tab:q3plans}
+{\footnotesize\input{generated/tables/tab_q3_plans.tex}}
+
+\subsection{问题 4：模型规模、目标方案与逐计划动作}
+
+\begin{table}[htbp]
+\centering\small
+\begin{minipage}[t]{0.52\linewidth}
+\centering
+\caption{问题 4 的模型规模与求解设置。}\label{tab:q4model}
+\input{generated/tables/tab_q4_model.tex}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.44\linewidth}
+\centering
+\caption{问题 4 中被撤销计划的局部环境（列的含义同表~\ref{tab:q2cancel}）。}\label{tab:q4cancel}
+\input{generated/tables/tab_q4_cancelled.tex}
+\end{minipage}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{四种目标方案在问题 4 上的对照（列的含义同表~\ref{tab:q2schemes}，另给出使用间隔调整动作的计划数）。}
+\label{tab:q4schemes}
+\input{generated/tables/tab_q4_schemes.tex}
+\end{table}
+
+\needspace{5\baselineskip}
+\captionof{table}{问题 4 的逐计划动作清单（只列出被调整或被撤销的计划，与 \nolinkurl{result4.xlsx} 一致）。}
+\label{tab:q4adj}
+{\footnotesize\input{generated/tables/tab_q4_adjustments.tex}}
+
+\subsection{模型检验：微型实例穷举对照与规模基准}
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{$\valBenchTinyInstances$ 个随机微型实例上的穷举对照。对每个实例枚举全部动作组合，
+求出词典序最优向量，与本文的 CP-SAT 求解器结果逐一比对；最大枚举组合数为 $\valBenchTinyMaxCombinations$。}
+\label{tab:benchtiny}
+\input{generated/tables/tab_bench_tiny.tex}
+\end{table}
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{合成实例上的规模基准（$n=\valBenchScaleMinN,\dots,\valBenchScaleMaxN$，时间范围随 $n$ 等比放大以保持密度）。
+CP-SAT 一列采用固定 $120$ s 时限，故其状态只说明“在该预算内找到了可行解”，不代表可证明最优。}
+\label{tab:benchscaling}
+\setlength{\tabcolsep}{4pt}
+\input{generated/tables/tab_bench_scaling.tex}
+\end{table}
+
+\paperfigure[0.92\linewidth]{fig_bench_scaling}{算法的规模基准。合成实例 $n=\valBenchScaleMinN,\dots,\valBenchScaleMaxN$ 下
+两种检测算法与模型构建的用时，以及 CP-SAT 在固定 $120$ s 时限下的求解时间（纵轴为对数刻度）。
+检测算法始终为亚秒级，求解时间则受时限截断。}{fig:benchscaling}

@@ -1,8 +1,124 @@
 \subsection{模型假设}
-（编号假设及其依据，待撰写。）
+
+下列假设分为两类：\textbf{（题）} 表示题目已明确给定、本文仅作形式化；\textbf{（本文）} 表示题目未言明、
+由本文补充的解释或约定。每条给出依据，并说明假设被违反时结论会如何变化。
+
+\begin{assumption}[时频资源的离散性与半开性（题）]\label{as:discrete}
+时间以 $\Delta t$、频率以 $\Delta f$ 为不可拆分的最小单位；频率资源共 $B=100$ 个频段，编号 $0,\dots,99$。
+一切区间均为半开整数区间 $[\,\cdot,\cdot\,)$，
+两区间相交当且仅当 $\mathrm{lo}_1<\mathrm{hi}_2$ 且 $\mathrm{lo}_2<\mathrm{hi}_1$。
+\emph{依据}：题目规定“用频计划所占用的时间长度必须是 $\Delta t$ 的整数倍”，
+且附件示例以 $[35,40)$、$[100,105)$ 的半开形式书写。
+\emph{违反的后果}：若改为闭区间，首尾相接的两次使用（如 $[35,40)$ 与 $[40,45)$）会被判为冲突，
+冲突对数将被高估，消解代价随之虚增。
+\end{assumption}
+
+\begin{assumption}[使用序列的周期性（题）]\label{as:period}
+计划的第 $k$ 次（$k=0,\dots,n-1$）使用占用时间区间 $[\,s+k(d+g),\ s+d+k(d+g)\,)$，
+频段区间在全部 $n$ 次使用中保持为 $[f,f+w)$。
+\emph{依据}：题目对 A001 的示例明确给出第二次使用为 $[40+60,45+60)$。
+\end{assumption}
+
+\begin{assumption}[冲突定义在整个使用序列上（本文）]\label{as:conflict}
+两计划冲突当且仅当频段区间相交\emph{且至少存在一对使用次}在时间上相交。
+\emph{依据}：题目给出“间隔时长”与“使用次数”两个参数，若只比较首次使用，这两个参数将不影响任何结论。
+\emph{违反的后果}：只比较首次使用会漏检大量冲突（本文实例中 $\valQoneConflictPairs$ 对冲突共涉及
+$\valQoneUsePairs$ 对相交的使用次，其中许多并非首次）。
+\end{assumption}
+
+\begin{assumption}[平移的整数性与同步性（本文）]\label{as:shift}
+频段平移量 $\delta$ 与时间平移量 $\tau$ 均为整数（以 $\Delta f$、$\Delta t$ 计）；
+时间平移把\emph{整个}使用序列同步平移（即只改变 $s$），间隔 $g$ 与次数 $n$ 不变。
+\emph{依据}：资源已离散化，非整数平移无意义；“只能调整其中一个参数”要求平移不得同时改变 $g$ 或 $n$。
+\end{assumption}
+
+\begin{assumption}[平移的可行域（本文）]\label{as:domain}
+频段平移后必须仍落在带宽内，即 $0\le f+\delta$ 且 $f+\delta+w\le 100$；
+时间平移后首次使用不得早于零时刻，即 $s+\tau\ge 0$；平移方向不受限制（可正可负）。
+\emph{依据}：题目设定的是“有限带宽”的 $100$ 个频段，越界无物理意义；题目未限制平移方向。
+\emph{违反的后果}：若只允许向后平移，可行域缩小，撤销数量会上升。
+\end{assumption}
+
+\begin{assumption}[动作的互斥性（题）]\label{as:oneaction}
+每个计划恰好选择一个动作：保持、频段平移、时间平移、（问题 4 中 C 类的）间隔调整、撤销。
+不允许同时平移频段与时间。
+\emph{依据}：题目“一个用频计划只能调整其中一个参数或撤销”。
+\end{assumption}
+
+\begin{assumption}[间隔调整的下界（本文）]\label{as:gap}
+问题 4 中 C 类计划的新间隔 $g'$ 满足 $|g'-g|\le 10$ 且 $g'\ge 1$。
+\emph{依据}：题目只给出“与原间隔时长的差异不超过 $10\Delta t$”。本文补充 $g'\ge 1$：
+若 $g'=0$，相邻两次使用将首尾相连合并为一次更长的使用，等价于改变了“使用次数”的语义，
+与假设~\ref{as:oneaction} 冲突。
+\emph{违反的后果}：允许 $g'=0$ 会给 C 类多出一个动作，撤销数量可能略降，但所得方案不再满足“只改一个参数”。
+\end{assumption}
+
+\begin{assumption}[目标的词典序解释（本文）]\label{as:lex}
+题目的四条优先目标按“撤销 $\succ$ 调整数量 $\succ$ 调整幅度”的次序构成词典序，
+类别优先级 $A\succ B\succ C$ 嵌入前两条之内，得到七级目标 $L$（式~\eqref{eq:lex}）。
+幅度按各自允许的最大幅度归一化：$|\delta|/10+|\tau|/5+|\Delta g|/10$。
+\emph{依据}：题目对四条目标给出了明确的先后次序，却未给权重；词典序是“次序已知、权重未知”情形下最保守的形式化\cite{ehrgott2005}。
+\emph{违反的后果}：改用别的形式化会得到不同的方案；本文对三种备选方案（T、S、W）全部求解并给出对照
+（第~\ref{sec:q2schemes} 节），以量化这一假设的影响。
+\end{assumption}
+
+\begin{assumption}[问题 3 的资源区域与新增计划参数（本文）]\label{as:pack}
+“不增加时频资源”指新增计划必须落在 $100$ 个频段 $\times\,[0,T_{\mathrm{end}})$ 的区域内，
+其中 $T_{\mathrm{end}}$ 为问题 2 方案的最晚结束时刻；新增 C 类装备的参数与附件中 C 类完全相同，
+即 $w=\valDataWidthC$、$d=\valDataDurationC$、$g=\valDataGapC$、$n=\valDataUsesC$；
+新增计划之间以及与既有计划之间均不得冲突。
+\emph{依据}：题目要求“安排 C 类用频装备”，C 类的参数在附件中是同质的（表~\ref{tab:data}）；
+“不增加时频资源”最自然的度量就是不扩大频段数与时间范围。
+\emph{违反的后果}：若允许时间范围延长，可安排的数量将随时间线性增长，问题失去意义。
+\end{assumption}
+
+\begin{assumption}[计划之间无其他耦合（本文）]\label{as:indep}
+除时频占用外，计划之间无其他约束：不存在装备间的最小频率保护间隔、地理隔离、互调干扰、
+先后次序或资源配额等要求；同一装备的多次使用之间也不因平移而产生新的约束。
+\emph{依据}：题目只给出时频两维的占用信息，未提供任何几何、功率或体制参数。
+\emph{违反的后果}：真实电磁兼容分析中需要保护带与空间隔离，届时“冲突”的判据应放宽为
+“频段间隔小于保护带宽”，模型结构不变（只需把 $U(P)$ 沿频率方向膨胀），但冲突对数会显著上升。
+\end{assumption}
 
 \subsection{符号说明}
-\begin{longtable}{@{}lll@{}}
+
+\begin{longtable}{@{}p{0.20\linewidth}p{0.60\linewidth}p{0.14\linewidth}@{}}
 \toprule 符号 & 含义 & 单位 \\ \midrule \endhead \bottomrule \endfoot
-$t$ & 时间 & \si{\second} \\
+$\Delta f,\ \Delta t$ & 频域与时域的基本资源单位（题目给定，未赋数值） & --- \\
+$B=100$ & 频段总数，编号 $0,\dots,B-1$ & $\Delta f$ \\
+$N=\valQonePlans$ & 用频计划（装备）总数 & 个 \\
+$c(i)\in\{A,B,C\}$ & 计划 $i$ 所属的装备类别，优先级 $A\succ B\succ C$ & --- \\
+$P_i=(f_i,w_i,s_i,d_i,g_i,n_i)$ & 计划 $i$：频段起点、频宽、首次起始时刻、单次时长、间隔、次数 & --- \\
+$[f_i,\,f_i+w_i)$ & 计划 $i$ 占用的频段区间 & $\Delta f$ \\
+$I_i^{(k)}=[\,s_i+k\pi_i,\ s_i+d_i+k\pi_i)$ & 计划 $i$ 第 $k$ 次使用的时间区间，$\pi_i=d_i+g_i$ 为周期 & $\Delta t$ \\
+$U(P)$ & 计划 $P$ 占用的时频单元集合，$|U(P)|=wdn$ & 单元 \\
+$e_i=s_i+d_i+(n_i-1)\pi_i$ & 计划 $i$ 的结束时刻（不含） & $\Delta t$ \\
+$T_{\mathrm{end}}$ & 一组计划的最晚结束时刻 $\max_i e_i$（时间范围） & $\Delta t$ \\
+$G=(V,E)$ & 冲突图：顶点为计划，边为冲突对 & --- \\
+$O_i$ & 计划 $i$ 的动作集合（保持 / 频移 / 时移 / 改间隔 / 撤销） & --- \\
+$o=(\text{kind},\ \delta)$ & 一个动作：类型与幅度 & --- \\
+$y_{i,o}\in\{0,1\}$ & 计划 $i$ 采取动作 $o$ 时取 $1$ & --- \\
+$P_i^{o}$ & 计划 $i$ 采取动作 $o$ 后的计划（撤销时为空） & --- \\
+$\mathcal{C}$ & 时频单元全集 $\{0,\dots,B-1\}\times\{0,\dots,T_{\mathrm{end}}-1\}$ & 单元 \\
+$R_{b,t}$ & 覆盖单元 $(b,t)$ 的全部 $(i,o)$ 变量下标集合（“单元行”） & --- \\
+$\Phi$ & 最大频段平移幅度（题目为 $10$） & $\Delta f$ \\
+$\mathcal{T}$ & 最大时间平移幅度（题目为 $5$） & $\Delta t$ \\
+$\Gamma$ & 最大间隔调整幅度（问题 4 为 $10$） & $\Delta t$ \\
+$L=(L_1,\dots,L_7)$ & 七级词典序目标向量（式~\eqref{eq:lex}） & --- \\
+$A(o)$ & 动作 $o$ 的归一化幅度 $|\delta|/\Phi+|\tau|/\mathcal{T}+|\Delta g|/\Gamma$ & --- \\
+$x_{f,s}\in\{0,1\}$ & 问题 3 中在频段起点 $f$、首次时刻 $s$ 放置一个新增 C 类计划 & --- \\
+$\mathcal{F}$ & 问题 2 方案留下的自由单元集合 & 单元 \\
+$v_k,\ \underline{v}_k$ & 第 $k$ 级的取值与求解器给出的证明下界 & --- \\
 \end{longtable}
+
+\noindent 附件 1 给定的三类装备参数完全同质，汇总如表~\ref{tab:data}；该表由数据本身生成，
+生成时在程序中断言“同类计划的 $(w,d,g,n)$ 完全相同”，断言不成立则阶段失败。
+
+\begin{table}[htbp]
+\centering\small
+\caption{附件 1 给定的三类用频装备参数（由数据生成，同类同参已在程序中断言）。
+“时间跨度”为 $d+(n-1)(d+g)$，即单个计划从首次使用开始到最后一次使用结束所横跨的时长；
+“单计划单元数”为 $w\,d\,n$。}
+\label{tab:data}
+\input{generated/tables/tab_data.tex}
+\end{table}

@@ -13,6 +13,7 @@
 \usepackage{fancyhdr,needspace,placeins,enumitem}
 \usepackage{siunitx}
 \usepackage[ruled,linesnumbered,vlined]{algorithm2e}
+\SetAlgorithmName{算法}{算法}{算法目录}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
 \usepackage{listings}
@@ -97,6 +98,10 @@
 
 \clearpage
 \appendix
+\section{补充表格}
+\label{app:tables}
+\input{sections/appendix_tables.tex}
+
 \section{支撑材料文件清单}
 \label{app:support}
 下表列出支撑材料压缩包内的全部文件（相对路径）及其用途。压缩包内另含 \nolinkurl{MANIFEST.json}，记录每个文件的 SHA-256。
